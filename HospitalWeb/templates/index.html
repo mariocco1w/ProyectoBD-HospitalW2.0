@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hospital W 2.0 &middot; Panel de Administración</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230e7490'/%3E%3Cpath d='M12 6v12M6 12h12' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/static/app.css?v=6" />
+</head>
+<body>
+
+<!-- ============================ LOGIN ============================ -->
+<div id="login">
+  <div class="login-shell">
+    <div class="login-hero">
+      <div class="brand-mark">
+        <div class="logo-badge">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#04222b" stroke-width="2.4" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>
+        </div>
+        <div>
+          <h1>Hospital W 2.0</h1>
+          <p>Sistema de gestión hospitalaria</p>
+        </div>
+      </div>
+      <ul class="hero-points">
+        <li>
+          <span class="dot"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7fe3e0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+          <div><b>Pacientes</b><br />Registro, contacto de emergencia y admisiones.</div>
+        </li>
+        <li>
+          <span class="dot"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7fe3e0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg></span>
+          <div><b>Personal</b><br />Administración de empleados y turnos.</div>
+        </li>
+        <li>
+          <span class="dot"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7fe3e0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg></span>
+          <div><b>Inventario</b><br />Insumos y movimientos de existencias.</div>
+        </li>
+      </ul>
+      <p class="hero-foot">Acceso restringido &middot; Solo personal autorizado</p>
+    </div>
+
+    <div class="login-form">
+      <h2>Bienvenido</h2>
+      <p class="sub">Ingrese sus credenciales de administrador.</p>
+      <div class="field">
+        <label for="login-user">Usuario</label>
+        <input id="login-user" value="admin" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label for="login-pass">Clave</label>
+        <input id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button class="btn btn-primary btn-block" onclick="doLogin()">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/></svg>
+        Iniciar sesión
+      </button>
+      <p class="login-hint">Usuario de prueba: <b>admin</b> &middot; Clave: <b>admin123</b></p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ APP ============================ -->
+<div id="app" class="app-shell hidden">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo-badge">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#04222b" stroke-width="2.6" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>
+      </div>
+      <div>
+        <h1>Hospital W 2.0</h1>
+        <span>Panel de administración</span>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">Principal</div>
+        <button class="nav-item" data-view="dashboard" onclick="showView('dashboard')">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+          <span>Resumen</span>
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Operación</div>
+        <button class="nav-item" data-view="pacientes" onclick="showView('pacientes')">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Pacientes</span>
+        </button>
+        <button class="nav-item" data-view="admisiones" onclick="showView('admisiones')">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/></svg>
+          <span>Admisiones</span>
+        </button>
+        <button class="nav-item" data-view="contactos" onclick="showView('contactos')">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          <span>Contactos</span>
+        </button>
+        <button class="nav-item" data-view="telemetria" onclick="showView('telemetria')">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <span>Telemetría</span>
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Personal</div>
+        <button class="nav-item" data-view="empleados" onclick="showView('empleados')">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Empleados</span>
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Inventario</div>
+        <button class="nav-item" data-view="insumos" onclick="showView('insumos')">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg>
+          <span>Insumos</span>
+        </button>
+        <button class="nav-item" data-view="movimientos" onclick="showView('movimientos')">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h13l-3-3M21 17H8l3 3"/><path d="M3 7l3 3M21 17l-3-3"/></svg>
+          <span>Movimientos</span>
+        </button>
+      </div>
+    </nav>
+
+    <div class="side-foot">
+      <div class="avatar" id="user-initials">AD</div>
+      <div class="who">
+        <b id="whoami">Administrador</b>
+        <small>Administrador del sistema</small>
+      </div>
+      <button class="logout" title="Cerrar sesión" onclick="doLogout()">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-title">
+        <h2 id="page-title">Resumen general</h2>
+        <p class="sub" id="page-sub">Vista general del hospital</p>
+      </div>
+      <div class="topbar-actions">
+        <button class="ghost-btn" id="btn-refresh" title="Actualizar datos" onclick="actualizarTodo()">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          <span>Actualizar</span>
+        </button>
+        <button class="ghost-btn icon-only" id="btn-theme" title="Cambiar tema" onclick="toggleTheme()">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <div class="date-chip">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          <span id="today-label"></span>
+        </div>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ==================== DASHBOARD ==================== -->
+      <section id="view-dashboard" class="view">
+        <div class="hero-card">
+          <div>
+            <h2 id="hero-greeting">Bienvenido al panel de administración</h2>
+            <p>Resumen general del hospital: pacientes, personal, inventario y actividad clínica.</p>
+          </div>
+          <div class="hero-badge">
+            <span>Datos al</span>
+            <b id="hero-time">—</b>
+          </div>
+        </div>
+
+        <div class="stats" id="kpi-grid"></div>
+
+        <div class="section-head">
+          <div>
+            <h3>Distribución de la información</h3>
+            <p>Gráficas de pastel generadas con los datos actuales de la base.</p>
+          </div>
+        </div>
+        <div class="charts-grid" id="charts-grid"></div>
+      </section>
+
+      <!-- ==================== PACIENTES ==================== -->
+      <section id="view-pacientes" class="view hidden">
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+            <div><h3>Ingresar paciente</h3><p class="desc">Todos los campos son obligatorios.</p></div>
+          </div>
+          <div class="card-body">
+            <form class="grid" onsubmit="crearPaciente(event)">
+              <div class="field"><label>DPI</label><input name="dpi" required /></div>
+              <div class="field"><label>Nombre</label><input name="nombre" required /></div>
+              <div class="field"><label>Apellido</label><input name="apellido" required /></div>
+              <div class="field"><label>Fecha de nacimiento</label><input name="fecha_nacimiento" type="date" required /></div>
+              <div class="field"><label>Género</label><select name="genero" id="sel-genero" required></select></div>
+              <div class="field"><label>Dirección</label><input name="direccion" required /></div>
+              <div class="field"><label>Teléfono</label><input name="telefono" required /></div>
+              <div class="field"><label>Familiar responsable</label><select name="id_familiar" id="sel-familiar" required></select></div>
+              <div class="field"><label>Médico externo</label><select name="id_medico_externo" id="sel-medico" required></select></div>
+              <div class="field check"><input type="checkbox" name="es_adulto_mayor" id="chk-adulto" /><label for="chk-adulto">Adulto mayor</label></div>
+              <div class="actions-row"><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar paciente</button></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></div>
+            <div><h3>Pacientes registrados</h3><p class="desc">Haga clic en una fila para ver la ficha completa.</p></div>
+            <span class="count-badge" id="count-pacientes">0</span>
+          </div>
+          <div class="toolbar">
+            <label class="search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input placeholder="Buscar por nombre, apellido, DPI o teléfono..." oninput="filtrar('pacientes', this.value)" />
+            </label>
+            <div class="toolbar-info" id="info-pacientes"></div>
+          </div>
+          <div class="table-wrap"><table id="tbl-pacientes"></table></div>
+          <div class="pager-wrap" id="pager-pacientes"></div>
+        </div>
+      </section>
+
+      <!-- ==================== ADMISIONES ==================== -->
+      <section id="view-admisiones" class="view hidden">
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+            <div><h3>Registrar admisión</h3><p class="desc">Ingreso de un paciente, con o sin médico externo.</p></div>
+          </div>
+          <div class="card-body">
+            <form class="grid" onsubmit="crearAdmision(event)">
+              <div class="field"><label>Paciente</label><select name="id_paciente" id="sel-adm-paciente" required></select></div>
+              <div class="field"><label>Médico externo</label><select name="id_medico_externo" id="sel-adm-medico"></select></div>
+              <div class="field"><label>Fecha y hora</label><input name="fecha" type="datetime-local" /></div>
+              <div class="actions-row"><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar admisión</button></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></div>
+            <div><h3>Admisiones registradas</h3><p class="desc">Historial de ingresos de pacientes.</p></div>
+            <span class="count-badge" id="count-admisiones">0</span>
+          </div>
+          <div class="toolbar">
+            <label class="search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input placeholder="Buscar por paciente, DPI o médico..." oninput="filtrar('admisiones', this.value)" />
+            </label>
+            <div class="toolbar-info" id="info-admisiones"></div>
+          </div>
+          <div class="table-wrap"><table id="tbl-admisiones"></table></div>
+          <div class="pager-wrap" id="pager-admisiones"></div>
+        </div>
+      </section>
+
+      <!-- ==================== CONTACTOS ==================== -->
+      <section id="view-contactos" class="view hidden">
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+            <div><h3>Asignar contacto de emergencia</h3><p class="desc">Un paciente puede tener varios contactos.</p></div>
+          </div>
+          <div class="card-body">
+            <form class="grid" onsubmit="crearContacto(event)">
+              <div class="field"><label>Paciente</label><select name="id_paciente" id="sel-con-paciente" required></select></div>
+              <div class="field"><label>Contacto</label><select name="id_familiar" id="sel-con-familiar" required></select></div>
+              <div class="field"><label>Parentesco</label><select name="id_parentesco" id="sel-con-parentesco" required></select></div>
+              <div class="actions-row"><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar contacto</button></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></div>
+            <div><h3>Contactos de emergencia</h3><p class="desc">Tabla ASIGNACION_CONTACTO_EMERGENCIA.</p></div>
+            <span class="count-badge" id="count-contactos">0</span>
+          </div>
+          <div class="toolbar">
+            <label class="search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input placeholder="Buscar por paciente, contacto o parentesco..." oninput="filtrar('contactos', this.value)" />
+            </label>
+            <div class="toolbar-info" id="info-contactos"></div>
+          </div>
+          <div class="table-wrap"><table id="tbl-contactos"></table></div>
+          <div class="pager-wrap" id="pager-contactos"></div>
+        </div>
+      </section>
+
+      <!-- ==================== EMPLEADOS ==================== -->
+      <section id="view-empleados" class="view hidden">
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+            <div><h3>Ingresar empleado</h3><p class="desc">La especialidad es opcional.</p></div>
+          </div>
+          <div class="card-body">
+            <form class="grid" onsubmit="crearEmpleado(event)">
+              <div class="field"><label>NSS</label><input name="nss" required /></div>
+              <div class="field"><label>Nombre</label><input name="nombre" required /></div>
+              <div class="field"><label>Apellido</label><input name="apellido" required /></div>
+              <div class="field"><label>Rol</label><select name="rol" id="sel-rol" required></select></div>
+              <div class="field"><label>Turno</label><select name="id_turno" id="sel-turno" required></select></div>
+              <div class="field"><label>Especialidad</label><select name="id_especialidad" id="sel-especialidad"></select></div>
+              <div class="field check"><input type="checkbox" name="estado_activo" id="chk-activo" checked /><label for="chk-activo">Activo</label></div>
+              <div class="actions-row"><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar empleado</button></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></div>
+            <div><h3>Empleados registrados</h3><p class="desc">Eliminar un empleado borra también sus citas y asignaciones.</p></div>
+            <span class="count-badge" id="count-empleados">0</span>
+          </div>
+          <div class="toolbar">
+            <label class="search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input placeholder="Buscar por nombre, NSS o rol..." oninput="filtrar('empleados', this.value)" />
+            </label>
+            <div class="toolbar-info" id="info-empleados"></div>
+          </div>
+          <div class="table-wrap"><table id="tbl-empleados"></table></div>
+          <div class="pager-wrap" id="pager-empleados"></div>
+        </div>
+      </section>
+
+      <!-- ==================== INSUMOS ==================== -->
+      <section id="view-insumos" class="view hidden">
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+            <div><h3>Ingresar insumo</h3><p class="desc">El stock no puede superar el máximo.</p></div>
+          </div>
+          <div class="card-body">
+            <form class="grid" onsubmit="crearInsumo(event)">
+              <div class="field"><label>Código</label><input name="codigo_insumo" required /></div>
+              <div class="field"><label>Nombre</label><input name="nombre_insumo" required /></div>
+              <div class="field"><label>Tipo</label><input name="tipo_insumo" required /></div>
+              <div class="field"><label>Stock existencia</label><input name="stock_existencia" type="number" step="0.01" min="0" value="0" required /></div>
+              <div class="field"><label>Stock máximo</label><input name="stock_maximo" type="number" step="0.01" min="0.01" required /></div>
+              <div class="field"><label>Costo unitario (Q)</label><input name="costo_unitario" type="number" step="0.01" min="0" required /></div>
+              <div class="field"><label>Proveedor</label><select name="id_proveedor" id="sel-proveedor" required></select></div>
+              <div class="actions-row"><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar insumo</button></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></div>
+            <div><h3>Insumos registrados</h3><p class="desc">El stock bajo se marca cuando la existencia es menor o igual al 25% del máximo.</p></div>
+            <span class="count-badge" id="count-insumos">0</span>
+          </div>
+          <div class="toolbar">
+            <label class="search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input placeholder="Buscar por nombre, código, tipo o proveedor..." oninput="filtrar('insumos', this.value)" />
+            </label>
+            <div class="toolbar-info" id="info-insumos"></div>
+          </div>
+          <div class="table-wrap"><table id="tbl-insumos"></table></div>
+          <div class="pager-wrap" id="pager-insumos"></div>
+        </div>
+      </section>
+
+      <!-- ==================== MOVIMIENTOS ==================== -->
+      <section id="view-movimientos" class="view hidden">
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+            <div><h3>Registrar movimiento</h3><p class="desc">Entrada, salida, ajuste o devolución de un insumo.</p></div>
+          </div>
+          <div class="card-body">
+            <form class="grid" onsubmit="crearMovimiento(event)">
+              <div class="field"><label>Insumo</label><select name="id_insumo" id="sel-mov-insumo" required></select></div>
+              <div class="field"><label>Tipo de movimiento</label><select name="id_tipo_movimiento" id="sel-mov-tipo" required></select></div>
+              <div class="field"><label>Cantidad</label><input name="cantidad" type="number" step="0.01" min="0.01" required /></div>
+              <div class="field"><label>Costo unitario (Q)</label><input name="costo_unitario" type="number" step="0.01" min="0" value="0" required /></div>
+              <div class="field"><label>Fecha y hora</label><input name="fecha" type="datetime-local" /></div>
+              <div class="field"><label>Observación</label><input name="observacion" placeholder="Opcional" /></div>
+              <div class="actions-row"><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar movimiento</button></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></div>
+            <div><h3>Movimientos registrados</h3><p class="desc">Tabla MOVIMIENTO_INVENTARIO.</p></div>
+            <span class="count-badge" id="count-movimientos">0</span>
+          </div>
+          <div class="toolbar">
+            <label class="search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input placeholder="Buscar por insumo, tipo u observación..." oninput="filtrar('movimientos', this.value)" />
+            </label>
+            <div class="toolbar-info" id="info-movimientos"></div>
+          </div>
+          <div class="table-wrap"><table id="tbl-movimientos"></table></div>
+          <div class="pager-wrap" id="pager-movimientos"></div>
+        </div>
+      </section>
+
+      <!-- ==================== TELEMETRIA ==================== -->
+      <section id="view-telemetria" class="view hidden">
+        <div class="notice" id="tel-notice">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+          <div><b>Procesamiento PySpark.</b> Las gráficas leen RESULTADO_PROCESAMIENTO_TELEMETRIA y RESUMEN_RIESGO_PACIENTE. Esta vista es de solo lectura.</div>
+        </div>
+        <div class="stats" id="tel-kpis"></div>
+        <div class="section-head">
+          <div>
+            <h3>Distribución de las mediciones</h3>
+            <p>Nivel de riesgo, alertas de saturación y volumen por paciente.</p>
+          </div>
+        </div>
+        <div class="charts-grid" id="tel-charts"></div>
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+            <div><h3>Resumen de riesgo por paciente</h3><p class="desc">Tabla RESUMEN_RIESGO_PACIENTE, cargada desde Colab.</p></div>
+            <span class="count-badge" id="count-riesgo">0</span>
+          </div>
+          <div class="table-wrap"><table id="tbl-riesgo"></table></div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+            <div><h3>Registros clínicos de la base</h3><p class="desc">Tabla REGISTRO_TELEMETRIA. Son los signos capturados en el hospital, aparte del lote de PySpark.</p></div>
+            <span class="count-badge" id="count-telemetria">0</span>
+          </div>
+          <div class="toolbar">
+            <label class="search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input placeholder="Buscar por paciente o DPI..." oninput="filtrar('telemetria', this.value)" />
+            </label>
+            <div class="toolbar-info" id="info-telemetria"></div>
+          </div>
+          <div class="table-wrap"><table id="tbl-telemetria"></table></div>
+          <div class="pager-wrap" id="pager-telemetria"></div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- ============================ DRAWER DETALLE ============================ -->
+<div id="drawer" class="drawer-overlay hidden" onclick="cerrarDetalle(event)">
+  <aside class="drawer" onclick="event.stopPropagation()">
+    <header class="drawer-head">
+      <div>
+        <h3 id="drawer-title">Detalle</h3>
+        <p id="drawer-sub"></p>
+      </div>
+      <button class="icon-btn" title="Cerrar" onclick="cerrarDetalle()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </header>
+    <div class="drawer-body" id="drawer-body"></div>
+  </aside>
+</div>
+
+<!-- ============================ CONFIRMAR ============================ -->
+<div id="confirm" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-ico" id="confirm-ico">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+    </div>
+    <h3 id="confirm-title">¿Confirmar acción?</h3>
+    <div class="modal-body" id="confirm-body"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="responderConfirm(false)">Cancelar</button>
+      <button class="btn btn-danger" id="confirm-btn" onclick="responderConfirm(true)">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ NOTIFICACIONES ============================ -->
+<div id="notifs" class="notifs" aria-live="polite"></div>
+
+<script src="/static/app.js?v=6"></script>
+</body>
+</html>
