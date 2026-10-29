@@ -724,8 +724,8 @@ SELECT m.IdMovimiento,
        CONVERT(varchar(19), m.FechaHora, 120) AS fecha,
        m.IdTipoMovimiento,
        tm.NombreTipoMovimiento AS tipo,
-       m.Cantidad,
-       m.CostoUnitario,
+       m.Cantidad AS cantidad,
+       m.CostoUnitario AS costo_unitario,
        m.Observacion
 FROM dbo.MOVIMIENTO_INVENTARIO m
 JOIN dbo.Insumo i ON i.id_insumo = m.IdInsumo

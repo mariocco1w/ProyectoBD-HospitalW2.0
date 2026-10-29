@@ -821,6 +821,8 @@ function renderDashboard() {
       day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
     });
   }
+
+  renderSparkResumen();
 }
 
 const TEL_CHARTS = [
@@ -835,49 +837,78 @@ const TEL_KPIS = [
   { key: "alertas", label: "Alertas SpO2", sub: (k) => `${nf.format(k.incompletos || 0)} incompletos`, icon: "heart", tone: "amber" },
 ];
 
+function kpisPySpark(k) {
+  return TEL_KPIS.map((def) => `
+    <div class="stat">
+      <div class="stat-head"><span class="ico ${def.tone}">${ICONS[def.icon]}</span></div>
+      <div class="num">${nf.format(k[def.key] ?? 0)}</div>
+      <div class="lbl">${escapeHtml(def.label)}<small>${escapeHtml(def.sub(k))}</small></div>
+    </div>`).join("");
+}
+
+function topCriticos(resumen) {
+  return [...(resumen || [])]
+    .sort((a, b) => (Number(b.RegistrosCriticos) || 0) - (Number(a.RegistrosCriticos) || 0)
+      || (Number(a.IdPaciente) || 0) - (Number(b.IdPaciente) || 0))
+    .slice(0, 5);
+}
+
+function pintarGraficasPySpark(grid, prefix) {
+  if (!grid) return;
+  const data = state.data.analisis || { charts: {}, resumen: [] };
+  const charts = data.charts || {};
+  const resumen = data.resumen || [];
+  grid.innerHTML = TEL_CHARTS.map((c) => `
+    <div class="chart-card">
+      <div class="card-head">
+        <span class="ico ${c.tone}">${ICONS[c.icon]}</span>
+        <div><h3>${escapeHtml(c.title)}</h3><p class="desc">${escapeHtml(c.desc)}</p></div>
+      </div>
+      <div class="chart-body" id="${prefix}-chart-${c.key}"></div>
+    </div>`).join("") + `
+    <div class="chart-card chart-wide">
+      <div class="card-head">
+        <span class="ico rose">${ICONS.alert}</span>
+        <div><h3>Top 5 con saturación crítica</h3><p class="desc">Pacientes con más mediciones de SpO2 inferior al 90 %, el mismo criterio del procesamiento PySpark.</p></div>
+      </div>
+      <div class="chart-body" id="${prefix}-chart-top5"></div>
+    </div>
+    <div class="chart-card chart-wide">
+      <div class="card-head">
+        <span class="ico blue">${ICONS.users}</span>
+        <div><h3>Volumen por paciente</h3><p class="desc">Críticos, moderados y el resto de mediciones de cada paciente.</p></div>
+      </div>
+      <div class="chart-body" id="${prefix}-chart-pacientes"></div>
+    </div>`;
+  TEL_CHARTS.forEach((c) => {
+    const cont = document.getElementById(`${prefix}-chart-${c.key}`);
+    if (cont) donutChart(cont, charts[c.key] || [], c);
+  });
+  const top = document.getElementById(`${prefix}-chart-top5`);
+  if (top) renderBarrasPaciente(top, topCriticos(resumen), { campo: "RegistrosCriticos", color: "#e11d48", leyenda: "Crítico" });
+  const barras = document.getElementById(`${prefix}-chart-pacientes`);
+  if (barras) renderBarrasPaciente(barras, resumen);
+}
+
+function renderSparkResumen() {
+  const data = state.data.analisis || { kpis: {}, charts: {}, resumen: [] };
+  const kpis = $("#spark-kpis");
+  if (kpis) kpis.innerHTML = kpisPySpark(data.kpis || {});
+  pintarGraficasPySpark($("#spark-charts"), "spark");
+}
+
 function renderTelemetria() {
   const data = state.data.analisis || { kpis: {}, charts: {}, resumen: [] };
   const k = data.kpis || {};
   const kpis = $("#tel-kpis");
-  if (kpis) {
-    kpis.innerHTML = TEL_KPIS.map((def) => `
-      <div class="stat">
-        <div class="stat-head"><span class="ico ${def.tone}">${ICONS[def.icon]}</span></div>
-        <div class="num">${nf.format(k[def.key] ?? 0)}</div>
-        <div class="lbl">${escapeHtml(def.label)}<small>${escapeHtml(def.sub(k))}</small></div>
-      </div>`).join("");
-  }
+  if (kpis) kpis.innerHTML = kpisPySpark(k);
 
   const aviso = $("#tel-notice");
   if (aviso && data.error) {
     aviso.querySelector("div").innerHTML = `<b>No se pudo leer el procesamiento.</b> ${escapeHtml(data.error)}`;
   }
 
-  const grid = $("#tel-charts");
-  if (grid) {
-    const charts = data.charts || {};
-    grid.innerHTML = TEL_CHARTS.map((c) => `
-      <div class="chart-card">
-        <div class="card-head">
-          <span class="ico ${c.tone}">${ICONS[c.icon]}</span>
-          <div><h3>${escapeHtml(c.title)}</h3><p class="desc">${escapeHtml(c.desc)}</p></div>
-        </div>
-        <div class="chart-body" id="tel-chart-${c.key}"></div>
-      </div>`).join("") + `
-      <div class="chart-card chart-wide">
-        <div class="card-head">
-          <span class="ico blue">${ICONS.users}</span>
-          <div><h3>Volumen por paciente</h3><p class="desc">Críticos, moderados y el resto de mediciones de cada paciente.</p></div>
-        </div>
-        <div class="chart-body" id="tel-chart-pacientes"></div>
-      </div>`;
-    TEL_CHARTS.forEach((c) => {
-      const cont = document.getElementById(`tel-chart-${c.key}`);
-      if (cont) donutChart(cont, charts[c.key] || [], c);
-    });
-    const barras = document.getElementById("tel-chart-pacientes");
-    if (barras) renderBarrasPaciente(barras, data.resumen || []);
-  }
+  pintarGraficasPySpark($("#tel-charts"), "tel");
 
   const filas = data.resumen || [];
   const badgeCount = $("#count-riesgo");
@@ -905,20 +936,32 @@ function renderTelemetria() {
     </tr></thead><tbody>${cuerpo}</tbody>`;
 }
 
-function renderBarrasPaciente(cont, filas) {
+function renderBarrasPaciente(cont, filas, opciones = {}) {
   if (!filas.length) {
     cont.innerHTML = `<div class="chart-empty">Sin datos para mostrar.</div>`;
     return;
   }
-  const maximo = Math.max(...filas.map((f) => Number(f.TotalRegistros) || 0), 1);
+  const campo = opciones.campo;
+  const maximo = Math.max(...filas.map((f) => Number(campo ? f[campo] : f.TotalRegistros) || 0), 1);
   const rows = filas.map((f) => {
     const total = Number(f.TotalRegistros) || 0;
     const crit = Number(f.RegistrosCriticos) || 0;
     const mod = Number(f.RegistrosModerados) || 0;
+    const sub = f.dpi ? f.dpi : `Id ${f.IdPaciente}`;
+    if (campo) {
+      const valor = Number(f[campo]) || 0;
+      const ancho = (valor / maximo) * 100;
+      return `<div class="bar-row">
+        <div class="bar-name" title="${escapeHtml(f.paciente)}">${escapeHtml(f.paciente)}<small>${escapeHtml(sub)}</small></div>
+        <div class="bar-track" title="${nf.format(valor)} ${escapeHtml(opciones.leyenda || "")}">
+          <span style="width:${ancho}%;background:${opciones.color || "#e11d48"}"></span>
+        </div>
+        <div class="bar-meta">${nf.format(valor)}</div>
+      </div>`;
+    }
     const resto = Math.max(total - crit - mod, 0);
     const ancho = (total / maximo) * 100;
     const parte = (n) => (total ? (n / total) * ancho : 0);
-    const sub = f.dpi ? f.dpi : `Id ${f.IdPaciente}`;
     return `<div class="bar-row">
       <div class="bar-name" title="${escapeHtml(f.paciente)}">${escapeHtml(f.paciente)}<small>${escapeHtml(sub)}</small></div>
       <div class="bar-track" title="${nf.format(total)} mediciones">
@@ -929,12 +972,14 @@ function renderBarrasPaciente(cont, filas) {
       <div class="bar-meta">${nf.format(total)}</div>
     </div>`;
   }).join("");
-  cont.innerHTML = `<div class="bar-list">${rows}</div>
-    <div class="bar-legend">
+  const leyenda = campo
+    ? `<div class="bar-legend"><span><i style="background:${opciones.color || "#e11d48"}"></i>${escapeHtml(opciones.leyenda || "Valor")}</span></div>`
+    : `<div class="bar-legend">
       <span><i style="background:#e11d48"></i>Crítico</span>
       <span><i style="background:#f59e0b"></i>Moderado</span>
       <span><i style="background:#10b981"></i>Resto</span>
     </div>`;
+  cont.innerHTML = `<div class="bar-list">${rows}</div>${leyenda}`;
   cont.style.flexDirection = "column";
   cont.style.alignItems = "stretch";
 }
