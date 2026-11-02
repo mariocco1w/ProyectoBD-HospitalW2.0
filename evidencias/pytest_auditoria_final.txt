@@ -1,0 +1,23 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.14.7, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\Mario Monroy\AppData\Local\Python\pythoncore-3.14-64\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\Mario Monroy\Desktop\ProyectoBD-HospitalW2.0\HospitalWeb
+plugins: anyio-4.13.0
+collecting ... collected 14 items
+
+tests/test_integracion.py::test_login_incorrecto_no_dice_sesion_expirada PASSED [  7%]
+tests/test_integracion.py::test_api_exige_sesion PASSED                  [ 14%]
+tests/test_integracion.py::test_rf1_alta_edicion_nss_duplicado_y_baja_logica PASSED [ 21%]
+tests/test_integracion.py::test_rf1_no_cambia_el_rol_de_un_medico_con_citas PASSED [ 28%]
+tests/test_integracion.py::test_rf2_edicion_dpi_admision_y_contacto PASSED [ 35%]
+tests/test_integracion.py::test_rf3_cama_ocupada_asignacion_controlada_y_cierre PASSED [ 42%]
+tests/test_integracion.py::test_rf3_dos_asignaciones_simultaneas PASSED  [ 50%]
+tests/test_integracion.py::test_rf4_edicion_y_movimientos_actualizan_stock PASSED [ 57%]
+tests/test_integracion.py::test_rf4_salidas_simultaneas_no_dejan_stock_negativo PASSED [ 64%]
+tests/test_integracion.py::test_rechazos_y_borrado_no_alteran_registros_ajenos PASSED [ 71%]
+tests/test_reglas.py::test_nuevo_stock_entrada_salida_ajuste_y_devolucion PASSED [ 78%]
+tests/test_reglas.py::test_nuevo_stock_rechaza_salida_excesiva_y_maximo PASSED [ 85%]
+tests/test_reglas.py::test_cantidad_cero_y_negativa_tienen_mensajes_distintos PASSED [ 92%]
+tests/test_reglas.py::test_traduccion_no_expone_el_texto_del_controlador PASSED [100%]
+
+============================= 14 passed in 2.44s ==============================

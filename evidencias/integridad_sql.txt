@@ -1,0 +1,73 @@
+﻿TABLAS 28
+PK 28
+FK 20
+UQ 15
+CHECK 12
+DEFAULT 15
+INDEX_UNIQUE_USER
+  ASIGNACION_CONTACTO_EMERGENCIA UQ_ASIGNACION_CONTACTO
+  Cama UQ_Cama_Sala_Numero
+  CENTRO_MEDICO UQ_CENTRO_MEDICO_Nombre
+  Empleado UQ_Empleado_NSS
+  Especialidad UQ_nombre_especialidad
+  Hospitalizacion UX_Hospitalizacion_Cama_Activa
+  Insumo UQ_Insumo_Codigo
+  MOVIMIENTO_INVENTARIO UX_MOVIMIENTO_Idempotencia
+  Paciente UQ_Paciente_DPI
+  PARENTESCO UQ_PARENTESCO_Nombre
+  Proveedor UQ_proveedor_nit
+  PUESTO UQ_PUESTO_Nombre
+  Sala UQ_nombre_sala
+  sysdiagrams UK_principal_name
+  TIPO_MOVIMIENTO UQ_TIPO_MOVIMIENTO_Nombre
+  TIPO_SALA UQ_TIPO_SALA_Nombre
+  Turno UQ_Turno_Nombre
+TABLAS_NOMBRE
+  ADMISION
+  ASIGNACION_CONTACTO_EMERGENCIA
+  AsignacionPersonalSala
+  Cama
+  CENTRO_MEDICO
+  Cita
+  DIRECCION
+  Empleado
+  Especialidad
+  Familiares
+  FamiliarResponsable
+  Hospitalizacion
+  Insumo
+  MedicoExterno
+  MOVIMIENTO_INVENTARIO
+  Paciente
+  PARENTESCO
+  Proveedor
+  PUESTO
+  REGISTRO_TELEMETRIA
+  RESULTADO_PROCESAMIENTO_TELEMETRIA
+  RESUMEN_RIESGO_PACIENTE
+  Sala
+  sysdiagrams
+  TELEFONO
+  TIPO_MOVIMIENTO
+  TIPO_SALA
+  Turno
+TRIGGERS
+  TR_Cita_SoloMedicos
+  TR_Empleado_ConCitas_Medico
+FK_NO_RESTRICTIVAS
+INDICES_CLAVE
+  UX_Hospitalizacion_Cama_Activa
+  UX_MOVIMIENTO_Idempotencia
+CONTEOS
+(108, 18, 18, 17, 9, 17, 103, 100, 100, 18, 0)
+HUERFANOS
+empleado_turno 0
+paciente_familiar 0
+hosp_paciente 0
+hosp_cama 0
+mov_insumo 0
+insumo_negativo 0
+cama_doble_activa 0
+activa_con_salida 0
+finalizada_sin_salida 0
+QAFIN 0

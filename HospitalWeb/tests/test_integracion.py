@@ -360,3 +360,56 @@ def test_rf4_salidas_simultaneas_no_dejan_stock_negativo(cliente, catalogos):
         hilo.join()
     assert sorted(resultados) == ["ok", "rechazo"]
     assert float(_id("SELECT stock_existencia FROM dbo.Insumo WHERE id_insumo=?", (insumo_id,))) == 0
+
+
+def test_rechazos_y_borrado_no_alteran_registros_ajenos(cliente, catalogos):
+    """Un alta inválida o un borrado de prueba no cambia filas que no son QAFIN."""
+    turno = catalogos["turnos"][0]["id_turno"]
+    familiar = catalogos["familiares"][0]["id_familiar"]
+    medico = catalogos["medicos"][0]["id_medico_externo"]
+    parentesco = catalogos["parentescos"][0]["IdParentesco"]
+    ancla = _id("SELECT TOP 1 id_paciente FROM dbo.Paciente WHERE dpi NOT LIKE 'QAFIN%'")
+    pacientes_reales = _id("SELECT COUNT(*) FROM dbo.Paciente WHERE dpi NOT LIKE 'QAFIN%'")
+    empleados_reales = _id("SELECT COUNT(*) FROM dbo.Empleado WHERE nss NOT LIKE 'QAFIN%'")
+    stock_real = _id(
+        "SELECT SUM(stock_existencia) FROM dbo.Insumo WHERE codigo_insumo NOT LIKE 'QAFIN%'"
+    )
+
+    nss = PREFIJO + "-AISL"
+    alta = {
+        "nss": nss, "nombre": "Aislado", "apellido": "Uno", "rol": "Enfermeria",
+        "id_turno": turno, "estado_activo": True,
+    }
+    assert cliente.post("/api/empleados", json=alta).status_code == 200
+    duplicado = cliente.post("/api/empleados", json=alta)
+    assert duplicado.status_code == 409 and "NSS" in duplicado.get_json()["error"]
+    assert "ODBC" not in duplicado.get_json()["error"]
+    turno_falso = cliente.post("/api/empleados", json=dict(alta, nss=PREFIJO + "-AISL2", id_turno=999999))
+    assert turno_falso.status_code == 409
+    assert _id("SELECT COUNT(*) FROM dbo.Empleado WHERE nss=?", (nss,)) == 1
+
+    cuerpo = {
+        "dpi": PREFIJO + "-AISL1", "nombre": "Aislado", "apellido": "Paciente",
+        "fecha_nacimiento": "1990-01-01", "genero": "Femenino",
+        "direccion": "Dir", "telefono": "55551111",
+        "id_familiar": familiar, "id_medico_externo": medico,
+    }
+    assert cliente.post("/api/pacientes", json=cuerpo).status_code == 200
+    assert cliente.post("/api/pacientes", json=dict(cuerpo, dpi=PREFIJO + "-AISL2", telefono="55552222")).status_code == 200
+    vacío = _id("SELECT id_paciente FROM dbo.Paciente WHERE dpi=?", (PREFIJO + "-AISL1",))
+    con_historia = _id("SELECT id_paciente FROM dbo.Paciente WHERE dpi=?", (PREFIJO + "-AISL2",))
+    assert cliente.post("/api/admisiones", json={"id_paciente": 999999, "fecha": "2026-11-02T09:00:00"}).status_code == 409
+    assert cliente.post("/api/admisiones", json={
+        "id_paciente": con_historia, "id_medico_externo": medico, "fecha": "2026-11-02T09:00:00",
+    }).status_code == 200
+    assert cliente.post("/api/contactos", json={
+        "id_paciente": con_historia, "id_familiar": familiar, "id_parentesco": 999999,
+    }).status_code == 409
+    assert cliente.delete(f"/api/pacientes/{con_historia}").status_code == 409
+    assert cliente.delete(f"/api/pacientes/{vacío}").status_code == 200
+    assert _id("SELECT id_paciente FROM dbo.Paciente WHERE dpi=?", (PREFIJO + "-AISL2",)) == con_historia
+    assert _id("SELECT COUNT(*) FROM dbo.ADMISION WHERE IdPaciente=?", (con_historia,)) == 1
+    assert _id("SELECT id_paciente FROM dbo.Paciente WHERE id_paciente=?", (ancla,)) == ancla
+    assert _id("SELECT COUNT(*) FROM dbo.Paciente WHERE dpi NOT LIKE 'QAFIN%'") == pacientes_reales
+    assert _id("SELECT COUNT(*) FROM dbo.Empleado WHERE nss NOT LIKE 'QAFIN%'") == empleados_reales
+    assert _id("SELECT SUM(stock_existencia) FROM dbo.Insumo WHERE codigo_insumo NOT LIKE 'QAFIN%'") == stock_real
