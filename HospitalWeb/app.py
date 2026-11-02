@@ -2,13 +2,11 @@
 Hospital W 2.0 - Panel de Administracion
 Backend Flask + pyodbc (SQL Server, autenticacion de Windows).
 
-Permite al administrador LISTAR, INGRESAR y ELIMINAR datos de:
-  - Pacientes
-  - Empleados
-  - Insumos
-  - Admisiones           (ADMISION)
-  - Contactos de emergencia (ASIGNACION_CONTACTO_EMERGENCIA)
-  - Movimientos de inventario (MOVIMIENTO_INVENTARIO)
+Permite al administrador consultar, registrar y modificar:
+  - Pacientes, admisiones y contactos de emergencia
+  - Empleados, con baja logica (el borrado fisico del personal queda rechazado)
+  - Insumos y movimientos de inventario, que actualizan la existencia
+  - Hospitalizaciones y asignacion de camas
   - Telemetria           (REGISTRO_TELEMETRIA, solo lectura)
 
 Ademas entrega los datos agregados del panel principal (graficas de pastel).
@@ -88,10 +86,57 @@ def serie(cursor, sql):
     ]
 
 
-def friendly_error(exc):
+def mensaje_tecnico(exc):
     if isinstance(exc, pyodbc.Error) and len(exc.args) > 1:
         return str(exc.args[1])
     return str(exc)
+
+
+def traducir_error(exc):
+    """Convierte errores de SQL Server en un texto util para la interfaz."""
+    bajo = mensaje_tecnico(exc).lower()
+    reglas = (
+        ("uq_empleado_nss", "Ese NSS ya está registrado."),
+        ("uq_paciente_dpi", "Ese DPI ya está registrado."),
+        ("uq_insumo_codigo", "Ese código de insumo ya está registrado."),
+        ("uq_asignacion_contacto", "Ese paciente ya tiene asignado a ese familiar."),
+        ("ux_hospitalizacion_cama_activa", "Esa cama ya está ocupada por una hospitalización activa."),
+        ("ux_movimiento_idempotencia", "Ese movimiento ya fue registrado y no se aplicó de nuevo."),
+        ("51002", "No se puede cambiar el rol porque el empleado tiene citas y debe seguir siendo médico."),
+        ("51001", "Una cita solo puede asignarse a un empleado con rol médico."),
+        ("ck_insumo_stock", "La existencia debe estar entre 0 y el stock máximo."),
+        ("ck_insumo_costo", "El costo no puede ser negativo."),
+        ("ck_movimiento_cantidad", "La cantidad debe ser mayor que cero."),
+        ("ck_movimiento_costo", "El costo del movimiento no puede ser negativo."),
+        ("ck_hospitalizacion_fechas", "La salida no puede ser anterior al ingreso."),
+        ("ck_hospitalizacion_consistencia", "El estado de la hospitalización no coincide con la fecha de salida."),
+        ("ck_hospitalizacion_estado", "El estado de hospitalización no es válido."),
+        ("fk_empleado_turno", "El turno seleccionado no existe."),
+        ("fk_empleado_especialidad", "La especialidad seleccionada no existe."),
+        ("fk_paciente_familiar", "El familiar responsable no existe."),
+        ("fk_paciente_medicoexterno", "El médico externo no existe."),
+        ("fk_insumo_proveedor", "El proveedor seleccionado no existe."),
+        ("fk_hospitalizacion_cama", "La cama seleccionada no existe."),
+        ("fk_hospitalizacion_paciente", "El paciente seleccionado no existe."),
+        ("fk_admision_paciente", "El paciente de la admisión no existe."),
+        ("fk_admision_medicoexterno", "El médico externo de la admisión no existe."),
+        ("fk_asignacion_contacto_familiar", "El familiar del contacto no existe."),
+        ("fk_asignacion_contacto_parentesco", "El parentesco seleccionado no existe."),
+        ("fk_asignacion_contacto_paciente", "El paciente del contacto no existe."),
+        ("fk_movimiento_insumo", "El insumo del movimiento no existe."),
+        ("fk_movimiento_tipomovimiento", "El tipo de movimiento no existe."),
+        ("foreign key", "Hay una asociación con un registro que no existe."),
+        ("unique", "Ya existe un registro con esos datos."),
+        ("check constraint", "Algún valor no cumple las reglas de la base de datos."),
+    )
+    for clave, texto in reglas:
+        if clave in bajo:
+            return texto
+    return "No se pudo guardar la información. Revise los datos e intente otra vez."
+
+
+def friendly_error(exc):
+    return traducir_error(exc)
 
 
 def login_required(view):
@@ -105,10 +150,11 @@ def login_required(view):
 
 
 def error_response(exc):
-    msg = friendly_error(exc)
-    if isinstance(exc, pyodbc.IntegrityError):
-        return jsonify(error="Restriccion de integridad: " + msg), 409
-    return jsonify(error=msg), 400
+    tecnico = mensaje_tecnico(exc)
+    app.logger.warning("Error de base de datos: %s", tecnico)
+    bajo = tecnico.lower()
+    codigo = 409 if isinstance(exc, pyodbc.IntegrityError) or "51001" in bajo or "51002" in bajo else 400
+    return jsonify(error=traducir_error(exc)), codigo
 
 
 def entero(valor, minimo=None):
@@ -123,10 +169,53 @@ def decimal_positivo(valor, nombre, permitir_cero=True):
     try:
         n = Decimal(str(valor))
     except Exception:
-        raise ValueError(f"{nombre} debe ser numerico.")
-    if n < 0 or (not permitir_cero and n == 0):
-        raise ValueError(f"{nombre} no puede ser negativo.")
+        raise ValueError(f"{nombre} debe ser numérico.")
+    if n < 0:
+        raise ValueError(f"{nombre} no puede ser negativa.")
+    if not permitir_cero and n == 0:
+        raise ValueError(f"{nombre} debe ser mayor que cero.")
     return n
+
+
+def nuevo_stock(actual, maximo, tipo, cantidad):
+    """Calcula la existencia resultante de un movimiento.
+
+    Entrada y Devolucion suman. Salida resta y no puede pasar de la
+    existencia. Ajuste sustituye la existencia por la cantidad contada:
+    el dato histórico «Ajuste por conteo fisico» describe un conteo, y
+    la columna Cantidad no guarda un signo. Los movimientos ya guardados
+    no se reprocesan.
+    """
+    actual = Decimal(actual)
+    maximo = Decimal(maximo)
+    cantidad = Decimal(cantidad)
+    nombre = (tipo or "").strip().lower()
+    if nombre in ("entrada", "devolucion", "devolución"):
+        nuevo = actual + cantidad
+    elif nombre == "salida":
+        if cantidad > actual:
+            raise ValueError("La salida supera la existencia disponible.")
+        nuevo = actual - cantidad
+    elif nombre == "ajuste":
+        nuevo = cantidad
+    else:
+        raise ValueError("Tipo de movimiento no reconocido.")
+    if nuevo < 0:
+        raise ValueError("La existencia no puede quedar negativa.")
+    if nuevo > maximo:
+        raise ValueError("La operación superaría el stock máximo del insumo.")
+    return nuevo
+
+
+def faltantes(datos, campos):
+    return [c for c in campos if datos.get(c) in (None, "")]
+
+
+def entero_id(valor, nombre):
+    try:
+        return int(valor)
+    except (TypeError, ValueError):
+        raise ValueError(f"{nombre} no es válido.")
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +290,24 @@ def api_catalogos():
                 cur,
                 "SELECT id_paciente, nombre + ' ' + apellido + ' (DPI ' + dpi + ')' AS nombre_completo "
                 "FROM dbo.Paciente ORDER BY nombre, apellido;",
+            ),
+            "empleados_activos": fetch(
+                cur,
+                "SELECT id_empleado, nombre + ' ' + apellido AS nombre_completo, rol "
+                "FROM dbo.Empleado WHERE estado_activo = 1 ORDER BY nombre, apellido;",
+            ),
+            "camas_disponibles": fetch(
+                cur,
+                """
+                SELECT c.id_cama, c.numero_cama, s.nombre_sala
+                FROM dbo.Cama c
+                JOIN dbo.Sala s ON s.id_sala = c.id_sala
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM dbo.Hospitalizacion h
+                    WHERE h.id_cama = c.id_cama AND h.estado = N'Activa'
+                )
+                ORDER BY s.nombre_sala, c.numero_cama;
+                """,
             ),
         }
     data["generos"] = ["Femenino", "Masculino", "Otro"]
@@ -373,22 +480,83 @@ def api_paciente_crear():
     return jsonify(ok=True)
 
 
+def _validar_paciente(d):
+    requeridos = [
+        "dpi", "nombre", "apellido", "fecha_nacimiento", "genero",
+        "direccion", "telefono", "id_familiar", "id_medico_externo",
+    ]
+    faltan = faltantes(d, requeridos)
+    if faltan:
+        raise ValueError("Campos obligatorios faltantes: " + ", ".join(faltan))
+    if d["genero"] not in ("Femenino", "Masculino", "Otro"):
+        raise ValueError("Género no válido.")
+    return (
+        d["dpi"].strip(),
+        d["nombre"].strip(),
+        d["apellido"].strip(),
+        d["fecha_nacimiento"],
+        d["genero"],
+        d["direccion"].strip(),
+        d["telefono"].strip(),
+        1 if d.get("es_adulto_mayor") else 0,
+        entero_id(d["id_familiar"], "El familiar"),
+        entero_id(d["id_medico_externo"], "El médico externo"),
+    )
+
+
+@app.put("/api/pacientes/<int:id_paciente>")
+@login_required
+def api_paciente_editar(id_paciente):
+    d = request.get_json(silent=True) or {}
+    try:
+        valores = _validar_paciente(d)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    try:
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                UPDATE dbo.Paciente
+                SET dpi=?, nombre=?, apellido=?, fecha_nacimiento=?, genero=?,
+                    direccion=?, telefono=?, es_adulto_mayor=?,
+                    id_familiar=?, id_medico_externo=?
+                WHERE id_paciente=?
+                """,
+                (*valores, id_paciente),
+            )
+            if cur.rowcount == 0:
+                raise LookupError("No existe el paciente indicado.")
+    except LookupError as exc:
+        return jsonify(error=str(exc)), 404
+    except pyodbc.Error as exc:
+        return error_response(exc)
+    return jsonify(ok=True)
+
+
 @app.delete("/api/pacientes/<int:id_paciente>")
 @login_required
 def api_paciente_eliminar(id_paciente):
     try:
         with db() as conn:
             cur = conn.cursor()
-            cur.execute("DELETE FROM dbo.REGISTRO_TELEMETRIA WHERE IdPaciente=?;", (id_paciente,))
-            telemetria = cur.rowcount
-            cur.execute("DELETE FROM dbo.ASIGNACION_CONTACTO_EMERGENCIA WHERE IdPaciente=?;", (id_paciente,))
-            contactos = cur.rowcount
-            cur.execute("DELETE FROM dbo.ADMISION WHERE IdPaciente=?;", (id_paciente,))
-            admisiones = cur.rowcount
-            cur.execute("DELETE FROM dbo.Hospitalizacion WHERE id_paciente=?;", (id_paciente,))
-            hosp = cur.rowcount
-            cur.execute("DELETE FROM dbo.Cita WHERE id_paciente=?;", (id_paciente,))
-            citas = cur.rowcount
+            cur.execute(
+                """
+                SELECT
+                  (SELECT COUNT(*) FROM dbo.Cita WHERE id_paciente=?) +
+                  (SELECT COUNT(*) FROM dbo.Hospitalizacion WHERE id_paciente=?) +
+                  (SELECT COUNT(*) FROM dbo.ADMISION WHERE IdPaciente=?) +
+                  (SELECT COUNT(*) FROM dbo.ASIGNACION_CONTACTO_EMERGENCIA WHERE IdPaciente=?) +
+                  (SELECT COUNT(*) FROM dbo.REGISTRO_TELEMETRIA WHERE IdPaciente=?)
+                """,
+                (id_paciente, id_paciente, id_paciente, id_paciente, id_paciente),
+            )
+            historial = int(cur.fetchone()[0])
+            if historial:
+                return jsonify(
+                    error="Este paciente tiene historial clínico. No se elimina para conservar "
+                    "admisiones, hospitalizaciones, contactos, citas y telemetría."
+                ), 409
             cur.execute("DELETE FROM dbo.Paciente WHERE id_paciente=?;", (id_paciente,))
             if cur.rowcount == 0:
                 raise LookupError("No existe el paciente indicado.")
@@ -396,14 +564,7 @@ def api_paciente_eliminar(id_paciente):
         return jsonify(error=str(exc)), 404
     except pyodbc.Error as exc:
         return error_response(exc)
-    return jsonify(
-        ok=True,
-        detalle=(
-            "Paciente eliminado. Tambien se borraron "
-            f"{citas} cita(s), {hosp} hospitalizacion(es), {admisiones} admision(es), "
-            f"{contactos} contacto(s) y {telemetria} registro(s) de telemetria."
-        ),
-    )
+    return jsonify(ok=True, detalle="Paciente eliminado. No tenía historial asociado.")
 
 
 # ---------------------------------------------------------------------------
@@ -470,27 +631,82 @@ def api_empleado_crear():
     return jsonify(ok=True)
 
 
-@app.delete("/api/empleados/<int:id_empleado>")
+def _valores_empleado(d):
+    requeridos = ["nss", "nombre", "apellido", "rol", "id_turno"]
+    vacios = faltantes(d, requeridos)
+    if vacios:
+        raise ValueError("Campos obligatorios faltantes: " + ", ".join(vacios))
+    if d["rol"] not in ("Medico", "Enfermeria", "Administrativo", "Tecnico", "Otro"):
+        raise ValueError("Rol no válido.")
+    id_especialidad = d.get("id_especialidad") or None
+    return (
+        d["nss"].strip(),
+        d["nombre"].strip(),
+        d["apellido"].strip(),
+        d["rol"],
+        1 if d.get("estado_activo", True) else 0,
+        entero_id(d["id_turno"], "El turno"),
+        entero_id(id_especialidad, "La especialidad") if id_especialidad else None,
+    )
+
+
+@app.put("/api/empleados/<int:id_empleado>")
 @login_required
-def api_empleado_eliminar(id_empleado):
+def api_empleado_editar(id_empleado):
+    d = request.get_json(silent=True) or {}
+    try:
+        valores = _valores_empleado(d)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
     try:
         with db() as conn:
             cur = conn.cursor()
-            cur.execute("DELETE FROM dbo.Cita WHERE id_empleado=?;", (id_empleado,))
-            citas = cur.rowcount
-            cur.execute("DELETE FROM dbo.AsignacionPersonalSala WHERE id_empleado=?;", (id_empleado,))
-            asig = cur.rowcount
-            cur.execute("DELETE FROM dbo.Empleado WHERE id_empleado=?;", (id_empleado,))
+            cur.execute(
+                """
+                UPDATE dbo.Empleado
+                SET nss=?, nombre=?, apellido=?, rol=?, estado_activo=?,
+                    id_turno=?, id_especialidad=?
+                WHERE id_empleado=?
+                """,
+                (*valores, id_empleado),
+            )
             if cur.rowcount == 0:
                 raise LookupError("No existe el empleado indicado.")
     except LookupError as exc:
         return jsonify(error=str(exc)), 404
     except pyodbc.Error as exc:
         return error_response(exc)
+    return jsonify(ok=True)
+
+
+@app.post("/api/empleados/<int:id_empleado>/baja")
+@login_required
+def api_empleado_baja(id_empleado):
+    """Baja lógica e idempotente. No borra citas ni asignaciones."""
+    try:
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE dbo.Empleado SET estado_activo=0 WHERE id_empleado=?;",
+                (id_empleado,),
+            )
+            if cur.rowcount == 0:
+                cur.execute("SELECT estado_activo FROM dbo.Empleado WHERE id_empleado=?;", (id_empleado,))
+                if cur.fetchone() is None:
+                    raise LookupError("No existe el empleado indicado.")
+    except LookupError as exc:
+        return jsonify(error=str(exc)), 404
+    except pyodbc.Error as exc:
+        return error_response(exc)
+    return jsonify(ok=True, detalle="Empleado inactivo. Su historial de citas y asignaciones se conserva.")
+
+
+@app.delete("/api/empleados/<int:id_empleado>")
+@login_required
+def api_empleado_eliminar(id_empleado):
     return jsonify(
-        ok=True,
-        detalle=f"Empleado eliminado. Tambien se borraron {citas} cita(s) y {asig} asignacion(es).",
-    )
+        error="La baja del personal es lógica y conserva el historial. Use la acción Dar de baja."
+    ), 405
 
 
 # ---------------------------------------------------------------------------
@@ -568,14 +784,71 @@ def api_insumo_crear():
     return jsonify(ok=True)
 
 
+def _valores_insumo(d):
+    requeridos = [
+        "codigo_insumo", "nombre_insumo", "tipo_insumo",
+        "stock_existencia", "stock_maximo", "costo_unitario", "id_proveedor",
+    ]
+    vacios = faltantes(d, requeridos)
+    if vacios:
+        raise ValueError("Campos obligatorios faltantes: " + ", ".join(vacios))
+    existencia = decimal_positivo(d["stock_existencia"], "La existencia")
+    maximo = decimal_positivo(d["stock_maximo"], "El stock máximo", permitir_cero=False)
+    costo = decimal_positivo(d["costo_unitario"], "El costo unitario")
+    if existencia > maximo:
+        raise ValueError("La existencia no puede ser mayor que el stock máximo.")
+    return (
+        d["codigo_insumo"].strip(),
+        d["nombre_insumo"].strip(),
+        d["tipo_insumo"].strip(),
+        existencia,
+        maximo,
+        costo,
+        entero_id(d["id_proveedor"], "El proveedor"),
+    )
+
+
+@app.put("/api/insumos/<int:id_insumo>")
+@login_required
+def api_insumo_editar(id_insumo):
+    d = request.get_json(silent=True) or {}
+    try:
+        valores = _valores_insumo(d)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    try:
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                UPDATE dbo.Insumo
+                SET codigo_insumo=?, nombre_insumo=?, tipo_insumo=?,
+                    stock_existencia=?, stock_maximo=?, costo_unitario=?, id_proveedor=?
+                WHERE id_insumo=?
+                """,
+                (*valores, id_insumo),
+            )
+            if cur.rowcount == 0:
+                raise LookupError("No existe el insumo indicado.")
+    except LookupError as exc:
+        return jsonify(error=str(exc)), 404
+    except pyodbc.Error as exc:
+        return error_response(exc)
+    return jsonify(ok=True)
+
+
 @app.delete("/api/insumos/<int:id_insumo>")
 @login_required
 def api_insumo_eliminar(id_insumo):
     try:
         with db() as conn:
             cur = conn.cursor()
-            cur.execute("DELETE FROM dbo.MOVIMIENTO_INVENTARIO WHERE IdInsumo=?;", (id_insumo,))
-            movimientos = cur.rowcount
+            cur.execute("SELECT COUNT(*) FROM dbo.MOVIMIENTO_INVENTARIO WHERE IdInsumo=?;", (id_insumo,))
+            movimientos = int(cur.fetchone()[0])
+            if movimientos:
+                return jsonify(
+                    error="Este insumo tiene movimientos. El historial se conserva y el insumo no se elimina."
+                ), 409
             cur.execute("DELETE FROM dbo.Insumo WHERE id_insumo=?;", (id_insumo,))
             if cur.rowcount == 0:
                 raise LookupError("No existe el insumo indicado.")
@@ -583,10 +856,7 @@ def api_insumo_eliminar(id_insumo):
         return jsonify(error=str(exc)), 404
     except pyodbc.Error as exc:
         return error_response(exc)
-    return jsonify(
-        ok=True,
-        detalle=f"Insumo eliminado. Tambien se borraron {movimientos} movimiento(s) de inventario.",
-    )
+    return jsonify(ok=True, detalle="Insumo eliminado. No tenía movimientos.")
 
 
 # ---------------------------------------------------------------------------
@@ -628,6 +898,36 @@ def api_admision_crear():
                 "INSERT INTO dbo.ADMISION (IdPaciente, IdMedicoExterno, FechaRegistro) VALUES (?,?,?);",
                 (int(d["id_paciente"]), int(medico) if medico else None, fecha),
             )
+    except pyodbc.Error as exc:
+        return error_response(exc)
+    return jsonify(ok=True)
+
+
+@app.put("/api/admisiones/<int:id_admision>")
+@login_required
+def api_admision_editar(id_admision):
+    """Actualiza paciente y médico. La fecha de registro no se modifica."""
+    d = request.get_json(silent=True) or {}
+    if d.get("id_paciente") in (None, ""):
+        return jsonify(error="Debe seleccionar un paciente."), 400
+    medico = d.get("id_medico_externo") or None
+    try:
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                UPDATE dbo.ADMISION
+                SET IdPaciente=?, IdMedicoExterno=?
+                WHERE IdAdmision=?
+                """,
+                (entero_id(d["id_paciente"], "El paciente"), int(medico) if medico else None, id_admision),
+            )
+            if cur.rowcount == 0:
+                raise LookupError("No existe la admisión indicada.")
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    except LookupError as exc:
+        return jsonify(error=str(exc)), 404
     except pyodbc.Error as exc:
         return error_response(exc)
     return jsonify(ok=True)
@@ -697,6 +997,41 @@ def api_contacto_crear():
     return jsonify(ok=True)
 
 
+@app.put("/api/contactos/<int:id_asignacion>")
+@login_required
+def api_contacto_editar(id_asignacion):
+    d = request.get_json(silent=True) or {}
+    vacios = faltantes(d, ["id_paciente", "id_familiar", "id_parentesco"])
+    if vacios:
+        return jsonify(error="Campos obligatorios faltantes: " + ", ".join(vacios)), 400
+    try:
+        valores = (
+            entero_id(d["id_paciente"], "El paciente"),
+            entero_id(d["id_familiar"], "El familiar"),
+            entero_id(d["id_parentesco"], "El parentesco"),
+        )
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    try:
+        with db() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                UPDATE dbo.ASIGNACION_CONTACTO_EMERGENCIA
+                SET IdPaciente=?, IdFamiliar=?, IdParentesco=?
+                WHERE IdAsignacion=?
+                """,
+                (*valores, id_asignacion),
+            )
+            if cur.rowcount == 0:
+                raise LookupError("No existe el contacto indicado.")
+    except LookupError as exc:
+        return jsonify(error=str(exc)), 404
+    except pyodbc.Error as exc:
+        return error_response(exc)
+    return jsonify(ok=True)
+
+
 @app.delete("/api/contactos/<int:id_asignacion>")
 @login_required
 def api_contacto_eliminar(id_asignacion):
@@ -741,56 +1076,275 @@ def api_movimientos():
         return jsonify(fetch(conn.cursor(), MOVIMIENTO_SELECT))
 
 
+def registrar_movimiento(conn, id_insumo, id_tipo, cantidad, costo, observacion=None, fecha=None, clave=None):
+    """Inserta el movimiento y actualiza la existencia en la misma transacción.
+
+    Bloquea la fila del insumo para que dos salidas simultáneas no consuman
+    dos veces el mismo stock. Si la clave ya existe, no vuelve a descontar.
+    """
+    cur = conn.cursor()
+    clave = (clave or "").strip() or None
+    if clave:
+        cur.execute(
+            "SELECT IdMovimiento FROM dbo.MOVIMIENTO_INVENTARIO WITH (UPDLOCK, HOLDLOCK) "
+            "WHERE ClaveIdempotencia=?;",
+            (clave,),
+        )
+        previo = cur.fetchone()
+        if previo:
+            return {"duplicado": True, "id_movimiento": int(previo[0])}
+
+    cur.execute(
+        """
+        SELECT stock_existencia, stock_maximo
+        FROM dbo.Insumo WITH (UPDLOCK, ROWLOCK)
+        WHERE id_insumo=?
+        """,
+        (id_insumo,),
+    )
+    insumo = cur.fetchone()
+    if insumo is None:
+        raise ValueError("El insumo seleccionado no existe.")
+    cur.execute(
+        "SELECT NombreTipoMovimiento FROM dbo.TIPO_MOVIMIENTO WHERE IdTipoMovimiento=?;",
+        (id_tipo,),
+    )
+    tipo_fila = cur.fetchone()
+    if tipo_fila is None:
+        raise ValueError("El tipo de movimiento no existe.")
+    actual, maximo = insumo
+    tipo = tipo_fila[0]
+    nuevo = nuevo_stock(actual, maximo, tipo, cantidad)
+    momento = fecha or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cur.execute(
+        """
+        INSERT INTO dbo.MOVIMIENTO_INVENTARIO
+            (IdInsumo, FechaHora, IdTipoMovimiento, Cantidad, CostoUnitario, Observacion, ClaveIdempotencia)
+        OUTPUT inserted.IdMovimiento
+        VALUES (?,?,?,?,?,?,?)
+        """,
+        (id_insumo, momento, id_tipo, cantidad, costo, observacion, clave),
+    )
+    id_movimiento = int(cur.fetchone()[0])
+    cur.execute(
+        "UPDATE dbo.Insumo SET stock_existencia=? WHERE id_insumo=?;",
+        (nuevo, id_insumo),
+    )
+    return {
+        "duplicado": False,
+        "id_movimiento": id_movimiento,
+        "stock_existencia": float(nuevo),
+        "tipo": tipo,
+    }
+
+
 @app.post("/api/movimientos")
 @login_required
 def api_movimiento_crear():
     d = request.get_json(silent=True) or {}
-    requeridos = ["id_insumo", "id_tipo_movimiento", "cantidad", "costo_unitario"]
-    faltan = [c for c in requeridos if d.get(c) in (None, "")]
-    if faltan:
-        return jsonify(error="Campos obligatorios faltantes: " + ", ".join(faltan)), 400
+    vacios = faltantes(d, ["id_insumo", "id_tipo_movimiento", "cantidad", "costo_unitario"])
+    if vacios:
+        return jsonify(error="Campos obligatorios faltantes: " + ", ".join(vacios)), 400
     try:
         cantidad = decimal_positivo(d["cantidad"], "La cantidad", permitir_cero=False)
         costo = decimal_positivo(d["costo_unitario"], "El costo unitario")
+        id_insumo = entero_id(d["id_insumo"], "El insumo")
+        id_tipo = entero_id(d["id_tipo_movimiento"], "El tipo de movimiento")
     except ValueError as exc:
         return jsonify(error=str(exc)), 400
-    fecha = (d.get("fecha") or "").replace("T", " ") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    fecha = (d.get("fecha") or "").replace("T", " ") or None
+    clave = (d.get("clave_idempotencia") or request.headers.get("Idempotency-Key") or "").strip() or None
     try:
         with db() as conn:
-            conn.cursor().execute(
-                """
-                INSERT INTO dbo.MOVIMIENTO_INVENTARIO
-                    (IdInsumo, FechaHora, IdTipoMovimiento, Cantidad, CostoUnitario, Observacion)
-                VALUES (?,?,?,?,?,?)
-                """,
-                (
-                    int(d["id_insumo"]),
-                    fecha,
-                    int(d["id_tipo_movimiento"]),
-                    cantidad,
-                    costo,
-                    (d.get("observacion") or "").strip() or None,
-                ),
+            resultado = registrar_movimiento(
+                conn,
+                id_insumo,
+                id_tipo,
+                cantidad,
+                costo,
+                (d.get("observacion") or "").strip() or None,
+                fecha,
+                clave,
             )
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
     except pyodbc.Error as exc:
         return error_response(exc)
-    return jsonify(ok=True)
+    return jsonify(ok=True, **resultado)
 
 
 @app.delete("/api/movimientos/<int:id_movimiento>")
 @login_required
 def api_movimiento_eliminar(id_movimiento):
+    return jsonify(
+        error="Los movimientos forman el historial de inventario y no se eliminan. "
+        "Registre una entrada, salida, devolución o ajuste para corregir la existencia."
+    ), 405
+
+
+# ---------------------------------------------------------------------------
+# HOSPITALIZACION Y CAMAS
+# ---------------------------------------------------------------------------
+HOSPITALIZACION_SELECT = """
+SELECT h.id_hospitalizacion,
+       h.id_paciente,
+       p.nombre + ' ' + p.apellido AS paciente,
+       p.dpi,
+       h.id_cama,
+       c.numero_cama,
+       s.nombre_sala,
+       CONVERT(varchar(19), h.fecha_hora_ingreso, 120) AS ingreso,
+       CONVERT(varchar(19), h.fecha_hora_salida_real, 120) AS salida,
+       h.motivo_ingreso,
+       h.estado
+FROM dbo.Hospitalizacion h
+JOIN dbo.Paciente p ON p.id_paciente = h.id_paciente
+JOIN dbo.Cama c ON c.id_cama = h.id_cama
+JOIN dbo.Sala s ON s.id_sala = c.id_sala
+"""
+
+
+@app.get("/api/hospitalizaciones")
+@login_required
+def api_hospitalizaciones():
+    estado = (request.args.get("estado") or "").strip()
+    paciente = (request.args.get("paciente") or "").strip()
+    sql = HOSPITALIZACION_SELECT
+    params = []
+    filtros = []
+    if estado:
+        filtros.append("h.estado = ?")
+        params.append(estado)
+    if paciente:
+        filtros.append("(p.nombre + ' ' + p.apellido LIKE ? OR p.dpi LIKE ?)")
+        params.extend([f"%{paciente}%", f"%{paciente}%"])
+    if filtros:
+        sql += " WHERE " + " AND ".join(filtros)
+    sql += " ORDER BY h.fecha_hora_ingreso DESC, h.id_hospitalizacion DESC;"
+    with db() as conn:
+        return jsonify(fetch(conn.cursor(), sql, tuple(params)))
+
+
+@app.get("/api/camas/disponibles")
+@login_required
+def api_camas_disponibles():
+    with db() as conn:
+        return jsonify(fetch(
+            conn.cursor(),
+            """
+            SELECT c.id_cama, c.numero_cama, s.nombre_sala, s.ubicacion_piso
+            FROM dbo.Cama c
+            JOIN dbo.Sala s ON s.id_sala = c.id_sala
+            WHERE NOT EXISTS (
+                SELECT 1 FROM dbo.Hospitalizacion h
+                WHERE h.id_cama = c.id_cama AND h.estado = N'Activa'
+            )
+            ORDER BY s.nombre_sala, c.numero_cama;
+            """,
+        ))
+
+
+def asignar_hospitalizacion(conn, id_paciente, id_cama, motivo):
+    """Ocupa una cama libre dentro de la transacción ya abierta."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT c.id_cama
+        FROM dbo.Cama c WITH (UPDLOCK, HOLDLOCK)
+        WHERE c.id_cama = ?
+          AND NOT EXISTS (
+              SELECT 1
+              FROM dbo.Hospitalizacion h WITH (UPDLOCK, HOLDLOCK)
+              WHERE h.id_cama = c.id_cama AND h.estado = N'Activa'
+          )
+        """,
+        (id_cama,),
+    )
+    if cur.fetchone() is None:
+        cur.execute("SELECT 1 FROM dbo.Cama WHERE id_cama=?;", (id_cama,))
+        if cur.fetchone() is None:
+            raise LookupError("La cama seleccionada no existe.")
+        raise ValueError("Esa cama ya está ocupada o no está disponible.")
+    cur.execute("SELECT 1 FROM dbo.Paciente WHERE id_paciente=?;", (id_paciente,))
+    if cur.fetchone() is None:
+        raise LookupError("El paciente seleccionado no existe.")
+    cur.execute(
+        """
+        INSERT INTO dbo.Hospitalizacion (id_paciente, id_cama, motivo_ingreso)
+        OUTPUT inserted.id_hospitalizacion, inserted.estado,
+               CONVERT(varchar(19), inserted.fecha_hora_ingreso, 120)
+        VALUES (?, ?, ?)
+        """,
+        (id_paciente, id_cama, motivo),
+    )
+    ingreso_id, estado, fecha = cur.fetchone()
+    return {"id_hospitalizacion": int(ingreso_id), "estado": estado, "ingreso": fecha}
+
+
+@app.post("/api/hospitalizaciones")
+@login_required
+def api_hospitalizacion_crear():
+    d = request.get_json(silent=True) or {}
+    vacios = faltantes(d, ["id_paciente", "id_cama", "motivo_ingreso"])
+    if vacios:
+        return jsonify(error="Campos obligatorios faltantes: " + ", ".join(vacios)), 400
+    motivo = str(d.get("motivo_ingreso") or "").strip()
+    if not motivo:
+        return jsonify(error="Indique el motivo de ingreso."), 400
+    if len(motivo) > 300:
+        return jsonify(error="El motivo admite como máximo 300 caracteres."), 400
+    try:
+        id_paciente = entero_id(d["id_paciente"], "El paciente")
+        id_cama = entero_id(d["id_cama"], "La cama")
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    try:
+        with db() as conn:
+            resultado = asignar_hospitalizacion(conn, id_paciente, id_cama, motivo)
+    except LookupError as exc:
+        return jsonify(error=str(exc)), 404
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 409
+    except pyodbc.Error as exc:
+        return error_response(exc)
+    return jsonify(ok=True, **resultado)
+
+
+@app.post("/api/hospitalizaciones/<int:id_hospitalizacion>/finalizar")
+@login_required
+def api_hospitalizacion_finalizar(id_hospitalizacion):
     try:
         with db() as conn:
             cur = conn.cursor()
-            cur.execute("DELETE FROM dbo.MOVIMIENTO_INVENTARIO WHERE IdMovimiento=?;", (id_movimiento,))
+            cur.execute(
+                """
+                SELECT estado
+                FROM dbo.Hospitalizacion WITH (UPDLOCK, HOLDLOCK)
+                WHERE id_hospitalizacion=?
+                """,
+                (id_hospitalizacion,),
+            )
+            fila = cur.fetchone()
+            if fila is None:
+                raise LookupError("No existe la hospitalización indicada.")
+            if fila[0] != "Activa":
+                return jsonify(error="Esta hospitalización ya no está activa y no vuelve a finalizarse."), 409
+            cur.execute(
+                """
+                UPDATE dbo.Hospitalizacion
+                SET estado = N'Finalizada',
+                    fecha_hora_salida_real = SYSDATETIME()
+                WHERE id_hospitalizacion = ? AND estado = N'Activa'
+                """,
+                (id_hospitalizacion,),
+            )
             if cur.rowcount == 0:
-                raise LookupError("No existe el movimiento indicado.")
+                return jsonify(error="Esta hospitalización ya no está activa y no vuelve a finalizarse."), 409
     except LookupError as exc:
         return jsonify(error=str(exc)), 404
     except pyodbc.Error as exc:
         return error_response(exc)
-    return jsonify(ok=True, detalle="Movimiento eliminado.")
+    return jsonify(ok=True, detalle="Hospitalización finalizada. La cama queda disponible.")
 
 
 # ---------------------------------------------------------------------------

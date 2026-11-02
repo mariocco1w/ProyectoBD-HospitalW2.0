@@ -151,6 +151,7 @@ const ENDPOINTS = {
   admisiones: "/api/admisiones",
   contactos: "/api/contactos",
   movimientos: "/api/movimientos",
+  hospitalizaciones: "/api/hospitalizaciones",
   telemetria: "/api/telemetria",
 };
 
@@ -166,6 +167,7 @@ const state = {
     admisiones: [],
     contactos: [],
     movimientos: [],
+    hospitalizaciones: [],
     telemetria: [],
   },
   filtros: {},
@@ -176,12 +178,14 @@ const state = {
     admisiones: { key: "fecha", dir: -1 },
     contactos: { key: "paciente", dir: 1 },
     movimientos: { key: "fecha", dir: -1 },
+    hospitalizaciones: { key: "ingreso", dir: -1 },
     telemetria: { key: "marca", dir: -1 },
   },
   page: {
     pacientes: 1, empleados: 1, insumos: 1, admisiones: 1,
-    contactos: 1, movimientos: 1, telemetria: 1,
+    contactos: 1, movimientos: 1, hospitalizaciones: 1, telemetria: 1,
   },
+  hospEstado: "",
   confirmResolve: null,
 };
 
@@ -237,7 +241,9 @@ const TABLES = {
       if (f.admisiones) partes.push(`${f.admisiones} admisión(es)`);
       if (f.contactos) partes.push(`${f.contactos} contacto(s)`);
       if (f.telemetria) partes.push(`${f.telemetria} registro(s) de telemetría`);
-      return partes.length ? `También se eliminarán: ${partes.join(", ")}.` : "";
+      return partes.length
+        ? `No se puede eliminar: se conservaría el historial (${partes.join(", ")}).`
+        : "";
     },
   },
 
@@ -245,6 +251,7 @@ const TABLES = {
     singular: "empleado",
     idKey: "id_empleado",
     pageSize: 8,
+    deletable: false,
     recordName: (f) => `${f.nombre} ${f.apellido}`,
     detailSub: (f) => `NSS ${f.nss}`,
     search: (f) => [f.nombre, f.apellido, f.nss, f.rol, f.nombre_turno, f.nombre_especialidad],
@@ -278,12 +285,7 @@ const TABLES = {
         ["Asignaciones a sala", nf.format(f.asignaciones)],
       ]},
     ],
-    cascade: (f) => {
-      const partes = [];
-      if (f.citas) partes.push(`${f.citas} cita(s)`);
-      if (f.asignaciones) partes.push(`${f.asignaciones} asignación(es) a sala`);
-      return partes.length ? `También se eliminarán: ${partes.join(", ")}.` : "";
-    },
+    baja: (f) => !!f.estado_activo,
   },
 
   insumos: {
@@ -323,7 +325,7 @@ const TABLES = {
       ]},
     ],
     cascade: (f) => (f.movimientos
-      ? `También se eliminarán ${f.movimientos} movimiento(s) de inventario asociados.`
+      ? "Este insumo tiene movimientos. El historial se conserva y no se elimina."
       : ""),
   },
 
@@ -385,6 +387,8 @@ const TABLES = {
     singular: "movimiento",
     idKey: "IdMovimiento",
     pageSize: 8,
+    deletable: false,
+    editable: false,
     recordName: (f) => `${f.tipo} · ${f.nombre_insumo}`,
     detailSub: (f) => fmtDateTime(f.fecha),
     search: (f) => [f.nombre_insumo, f.codigo_insumo, f.tipo, f.Observacion],
@@ -417,11 +421,53 @@ const TABLES = {
     cascade: () => "",
   },
 
+  hospitalizaciones: {
+    singular: "hospitalización",
+    idKey: "id_hospitalizacion",
+    pageSize: 8,
+    deletable: false,
+    editable: false,
+    finalizar: (f) => f.estado === "Activa",
+    recordName: (f) => f.paciente,
+    detailSub: (f) => `Ingreso #${f.id_hospitalizacion}`,
+    search: (f) => [f.paciente, f.dpi, f.numero_cama, f.nombre_sala, f.estado, f.motivo_ingreso],
+    extraFilter: (f) => !state.hospEstado || f.estado === state.hospEstado,
+    columns: [
+      { key: "ingreso_n", label: "Ingreso", sort: (f) => Number(f.id_hospitalizacion) || 0,
+        render: (f) => `<b>#${f.id_hospitalizacion}</b>` },
+      { key: "paciente", label: "Paciente", sort: (f) => String(f.paciente).toLowerCase(),
+        render: (f) => personCell(f.paciente, `DPI ${f.dpi}`) },
+      { key: "cama", label: "Cama", sort: (f) => f.numero_cama,
+        render: (f) => escapeHtml(f.numero_cama) },
+      { key: "sala", label: "Sala", sort: (f) => f.nombre_sala,
+        render: (f) => `<span class="truncate" title="${escapeHtml(f.nombre_sala)}">${escapeHtml(f.nombre_sala)}</span>` },
+      { key: "ingreso", label: "Ingreso", sort: (f) => f.ingreso, render: (f) => fmtDateTime(f.ingreso) },
+      { key: "salida", label: "Salida", sort: (f) => f.salida || "",
+        render: (f) => (f.salida ? fmtDateTime(f.salida) : "—") },
+      { key: "estado", label: "Estado", sort: (f) => f.estado,
+        render: (f) => badge(f.estado, f.estado === "Activa" ? "green" : (f.estado === "Cancelada" ? "rose" : "gray")) },
+    ],
+    detail: (f) => [
+      { title: "Hospitalización", rows: [
+        ["Número", `#${f.id_hospitalizacion}`],
+        ["Paciente", escapeHtml(f.paciente)],
+        ["DPI", escapeHtml(f.dpi)],
+        ["Cama", escapeHtml(f.numero_cama)],
+        ["Sala", escapeHtml(f.nombre_sala)],
+        ["Ingreso", fmtDateTime(f.ingreso)],
+        ["Salida", f.salida ? fmtDateTime(f.salida) : "—"],
+        ["Estado", badge(f.estado, f.estado === "Activa" ? "green" : "gray")],
+        ["Motivo", escapeHtml(f.motivo_ingreso)],
+      ]},
+    ],
+  },
+
   telemetria: {
     singular: "registro",
     idKey: "IdRegistro",
     pageSize: 8,
     deletable: false,
+    editable: false,
     recordName: (f) => f.paciente,
     detailSub: (f) => `Registro #${f.IdRegistro}`,
     search: (f) => [f.paciente, f.dpi],
@@ -500,7 +546,7 @@ async function api(path, options = {}) {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
-  if (res.status === 401) {
+  if (res.status === 401 && path !== "/api/login") {
     showLogin();
     throw new Error("La sesión expiró. Vuelva a iniciar sesión.");
   }
@@ -558,7 +604,7 @@ async function enterApp() {
 
 /* --------------------------- Carga de información ------------------------ */
 async function cargarTodo() {
-  const [dashboard, pacientes, empleados, insumos, admisiones, contactos, movimientos, telemetria, analisis, catalogos] =
+  const [dashboard, pacientes, empleados, insumos, admisiones, contactos, movimientos, hospitalizaciones, telemetria, analisis, catalogos] =
     await Promise.all([
       api("/api/dashboard"),
       api("/api/pacientes"),
@@ -567,12 +613,13 @@ async function cargarTodo() {
       api("/api/admisiones"),
       api("/api/contactos"),
       api("/api/movimientos"),
+      api("/api/hospitalizaciones"),
       api("/api/telemetria"),
       api("/api/telemetria/analisis"),
       api("/api/catalogos"),
     ]);
 
-  state.data = { dashboard, pacientes, empleados, insumos, admisiones, contactos, movimientos, telemetria, analisis };
+  state.data = { dashboard, pacientes, empleados, insumos, admisiones, contactos, movimientos, hospitalizaciones, telemetria, analisis };
   state.catalogos = catalogos;
   state.loaded = true;
   llenarCatalogos();
@@ -584,7 +631,7 @@ async function recargar(nombres = []) {
     api(ENDPOINTS[n]).then((filas) => { state.data[n] = filas; })
   );
   tareas.push(api("/api/dashboard").then((d) => { state.data.dashboard = d; }));
-  if (nombres.includes("pacientes") || nombres.includes("insumos")) {
+  if (nombres.some((n) => ["pacientes", "insumos", "hospitalizaciones", "empleados"].includes(n))) {
     tareas.push(api("/api/catalogos").then((c) => { state.catalogos = c; llenarCatalogos(); }));
   }
   await Promise.all(tareas);
@@ -609,6 +656,7 @@ const VIEWS = {
   dashboard: { title: "Resumen general", sub: "Vista general del hospital" },
   pacientes: { title: "Pacientes", sub: "Gestión de pacientes registrados" },
   admisiones: { title: "Admisiones", sub: "Registro de ingresos de pacientes" },
+  hospitalizaciones: { title: "Hospitalización", sub: "Asignación de camas y egresos" },
   contactos: { title: "Contactos de emergencia", sub: "Contactos asignados a cada paciente" },
   empleados: { title: "Empleados", sub: "Administración del personal" },
   insumos: { title: "Insumos", sub: "Control de inventario" },
@@ -663,6 +711,21 @@ function llenarCatalogos() {
   fill("sel-con-parentesco", c.parentescos, { placeholder: "Seleccione parentesco", value: (p) => p.IdParentesco, label: (p) => p.NombreParentesco });
   fill("sel-mov-insumo", c.insumos, { placeholder: "Seleccione un insumo", value: (i) => i.id_insumo, label: (i) => `${i.codigo_insumo} — ${i.nombre_insumo}` });
   fill("sel-mov-tipo", c.tipos_movimiento, { placeholder: "Seleccione tipo", value: (t) => t.IdTipoMovimiento, label: (t) => t.NombreTipoMovimiento });
+  fill("sel-hosp-paciente", c.pacientes_opciones, { placeholder: "Seleccione un paciente", value: (p) => p.id_paciente, label: (p) => p.nombre_completo });
+  const camas = c.camas_disponibles || [];
+  fill("sel-hosp-cama", camas, {
+    placeholder: camas.length ? "Seleccione una cama libre" : "No hay camas disponibles",
+    value: (cama) => cama.id_cama,
+    label: (cama) => `${cama.numero_cama} — ${cama.nombre_sala}`,
+  });
+  const aviso = document.getElementById("hosp-disponibilidad");
+  if (aviso) {
+    aviso.textContent = camas.length
+      ? `${camas.length} cama(s) libre(s). La fecha de ingreso se registra automáticamente y el estado inicial es Activa.`
+      : "No hay camas disponibles. Todas tienen una hospitalización activa, así que no se puede registrar un ingreso nuevo.";
+  }
+  const btnHosp = document.querySelector("#form-hospitalizacion button[type='submit']");
+  if (btnHosp) btnHosp.disabled = camas.length === 0;
 }
 
 /* -------------------------------- Tablas --------------------------------- */
@@ -685,6 +748,7 @@ function renderTable(name) {
       cfg.search(f).some((v) => String(v ?? "").toLowerCase().includes(q))
     );
   }
+  if (cfg.extraFilter) filas = filas.filter(cfg.extraFilter);
 
   const orden = state.sort[name];
   if (orden) {
@@ -719,6 +783,18 @@ function renderTable(name) {
         const celdas = cfg.columns.map((c) =>
           `<td${c.align ? ` class="${c.align}"` : ""}>${c.render(f)}</td>`
         ).join("");
+        const editar = cfg.editable === false ? "" : `
+          <button class="icon-btn" title="Editar" onclick="event.stopPropagation();prepararEdicion('${name}','${id}')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+          </button>`;
+        const baja = cfg.baja && cfg.baja(f) ? `
+          <button class="icon-btn danger" title="Dar de baja" onclick="event.stopPropagation();pedirBaja('${id}')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M17 11l4 4M21 11l-4 4"/></svg>
+          </button>` : "";
+        const finalizar = cfg.finalizar && cfg.finalizar(f) ? `
+          <button class="icon-btn" title="Finalizar" onclick="event.stopPropagation();finalizarHospitalizacion('${id}')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6-11 11-5-5"/></svg>
+          </button>` : "";
         const eliminar = cfg.deletable === false ? "" : `
           <button class="icon-btn danger" title="Eliminar" onclick="event.stopPropagation();pedirEliminar('${name}','${id}')">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
@@ -727,7 +803,7 @@ function renderTable(name) {
           <td class="actions-cell">
             <button class="icon-btn" title="Ver detalle" onclick="event.stopPropagation();verDetalle('${name}','${id}')">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>${eliminar}
+            </button>${editar}${finalizar}${baja}${eliminar}
           </td></tr>`;
       }).join("")
     : `<tr class="no-click"><td colspan="${cfg.columns.length + 1}"><div class="empty">` +
@@ -1127,19 +1203,124 @@ function notify(title, message, type = "ok", persist = false) {
   if (!persist && type !== "error") setTimeout(cerrar, 6000);
 }
 
+const FORMULARIOS = {
+  pacientes: {
+    id: "form-paciente",
+    titulo: "Ingresar paciente",
+    tituloEdicion: "Editar paciente",
+    campos: (f) => ({
+      dpi: f.dpi, nombre: f.nombre, apellido: f.apellido,
+      fecha_nacimiento: f.fecha_nacimiento, genero: f.genero,
+      direccion: f.direccion, telefono: f.telefono,
+      id_familiar: f.id_familiar, id_medico_externo: f.id_medico_externo,
+      es_adulto_mayor: !!f.es_adulto_mayor,
+    }),
+  },
+  empleados: {
+    id: "form-empleado",
+    titulo: "Ingresar empleado",
+    tituloEdicion: "Editar empleado",
+    campos: (f) => ({
+      nss: f.nss, nombre: f.nombre, apellido: f.apellido, rol: f.rol,
+      id_turno: f.id_turno, id_especialidad: f.id_especialidad || "",
+      estado_activo: !!f.estado_activo,
+    }),
+  },
+  insumos: {
+    id: "form-insumo",
+    titulo: "Ingresar insumo",
+    tituloEdicion: "Editar insumo",
+    campos: (f) => ({
+      codigo_insumo: f.codigo_insumo, nombre_insumo: f.nombre_insumo,
+      tipo_insumo: f.tipo_insumo, stock_existencia: f.stock_existencia,
+      stock_maximo: f.stock_maximo, costo_unitario: f.costo_unitario,
+      id_proveedor: f.id_proveedor,
+    }),
+  },
+  admisiones: {
+    id: "form-admision",
+    titulo: "Registrar admisión",
+    tituloEdicion: "Editar admisión",
+    campos: (f) => ({
+      id_paciente: f.IdPaciente, id_medico_externo: f.IdMedicoExterno || "",
+    }),
+  },
+  contactos: {
+    id: "form-contacto",
+    titulo: "Asignar contacto de emergencia",
+    tituloEdicion: "Editar contacto",
+    campos: (f) => ({
+      id_paciente: f.IdPaciente, id_familiar: f.IdFamiliar, id_parentesco: f.IdParentesco,
+    }),
+  },
+};
+
+function prepararEdicion(name, id) {
+  const meta = FORMULARIOS[name];
+  const cfg = TABLES[name];
+  const fila = (state.data[name] || []).find((x) => String(x[cfg.idKey]) === String(id));
+  if (!meta || !fila) return;
+  const form = document.getElementById(meta.id);
+  if (!form) return;
+  form.dataset.id = id;
+  Object.entries(meta.campos(fila)).forEach(([clave, valor]) => {
+    const campo = form.elements[clave];
+    if (!campo) return;
+    if (campo.type === "checkbox") campo.checked = !!valor;
+    else campo.value = valor == null ? "" : valor;
+  });
+  const titulo = form.closest(".card").querySelector("h3");
+  if (titulo) titulo.textContent = meta.tituloEdicion;
+  const cancelar = form.querySelector("[data-cancel]");
+  if (cancelar) cancelar.classList.remove("hidden");
+  if (name === "admisiones") {
+    const fecha = form.elements.fecha;
+    if (fecha) fecha.disabled = true;
+  }
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function cancelarEdicion(name) {
+  const meta = FORMULARIOS[name];
+  if (!meta) return;
+  const form = document.getElementById(meta.id);
+  if (!form) return;
+  form.reset();
+  delete form.dataset.id;
+  const titulo = form.closest(".card").querySelector("h3");
+  if (titulo) titulo.textContent = meta.titulo;
+  const cancelar = form.querySelector("[data-cancel]");
+  if (cancelar) cancelar.classList.add("hidden");
+  if (name === "empleados") {
+    const activo = document.getElementById("chk-activo");
+    if (activo) activo.checked = true;
+  }
+  if (name === "admisiones" && form.elements.fecha) form.elements.fecha.disabled = false;
+}
+
+function filtrarEstadoHospitalizacion(valor) {
+  state.hospEstado = valor;
+  state.page.hospitalizaciones = 1;
+  renderTable("hospitalizaciones");
+}
+
 /* --------------------------------- Formularios --------------------------- */
 async function crearPaciente(e) {
   e.preventDefault();
   const form = e.target;
   const datos = formData(form);
+  const id = form.dataset.id;
   const btn = form.querySelector('button[type="submit"]');
   setBusy(btn, true);
   try {
-    await api("/api/pacientes", { method: "POST", body: JSON.stringify(datos) });
+    await api(id ? `/api/pacientes/${id}` : "/api/pacientes", {
+      method: id ? "PUT" : "POST",
+      body: JSON.stringify(datos),
+    });
     const nombre = `${datos.nombre} ${datos.apellido}`;
-    form.reset();
+    cancelarEdicion("pacientes");
     await recargar(["pacientes"]);
-    notify("Paciente registrado", `${nombre} se guardó correctamente.`, "ok");
+    notify(id ? "Paciente actualizado" : "Paciente registrado", `${nombre} se guardó correctamente.`, "ok");
   } catch (err) {
     notify("No se pudo guardar el paciente", err.message, "error", true);
   } finally {
@@ -1151,15 +1332,18 @@ async function crearEmpleado(e) {
   e.preventDefault();
   const form = e.target;
   const datos = formData(form);
+  const id = form.dataset.id;
   const btn = form.querySelector('button[type="submit"]');
   setBusy(btn, true);
   try {
-    await api("/api/empleados", { method: "POST", body: JSON.stringify(datos) });
+    await api(id ? `/api/empleados/${id}` : "/api/empleados", {
+      method: id ? "PUT" : "POST",
+      body: JSON.stringify(datos),
+    });
     const nombre = `${datos.nombre} ${datos.apellido}`;
-    form.reset();
-    $("#chk-activo").checked = true;
+    cancelarEdicion("empleados");
     await recargar(["empleados"]);
-    notify("Empleado registrado", `${nombre} se guardó correctamente.`, "ok");
+    notify(id ? "Empleado actualizado" : "Empleado registrado", `${nombre} se guardó correctamente.`, "ok");
   } catch (err) {
     notify("No se pudo guardar el empleado", err.message, "error", true);
   } finally {
@@ -1171,14 +1355,18 @@ async function crearInsumo(e) {
   e.preventDefault();
   const form = e.target;
   const datos = formData(form);
+  const id = form.dataset.id;
   const btn = form.querySelector('button[type="submit"]');
   setBusy(btn, true);
   try {
-    await api("/api/insumos", { method: "POST", body: JSON.stringify(datos) });
+    await api(id ? `/api/insumos/${id}` : "/api/insumos", {
+      method: id ? "PUT" : "POST",
+      body: JSON.stringify(datos),
+    });
     const nombre = datos.nombre_insumo;
-    form.reset();
+    cancelarEdicion("insumos");
     await recargar(["insumos"]);
-    notify("Insumo registrado", `${nombre} se guardó en el inventario.`, "ok");
+    notify(id ? "Insumo actualizado" : "Insumo registrado", `${nombre} se guardó en el inventario.`, "ok");
   } catch (err) {
     notify("No se pudo guardar el insumo", err.message, "error", true);
   } finally {
@@ -1190,13 +1378,17 @@ async function crearAdmision(e) {
   e.preventDefault();
   const form = e.target;
   const datos = formData(form);
+  const id = form.dataset.id;
   const btn = form.querySelector('button[type="submit"]');
   setBusy(btn, true);
   try {
-    await api("/api/admisiones", { method: "POST", body: JSON.stringify(datos) });
-    form.reset();
+    await api(id ? `/api/admisiones/${id}` : "/api/admisiones", {
+      method: id ? "PUT" : "POST",
+      body: JSON.stringify(datos),
+    });
+    cancelarEdicion("admisiones");
     await recargar(["admisiones"]);
-    notify("Admisión registrada", "El ingreso del paciente se guardó correctamente.", "ok");
+    notify(id ? "Admisión actualizada" : "Admisión registrada", "Los datos del ingreso se guardaron. La fecha de registro original se conserva al editar.", "ok");
   } catch (err) {
     notify("No se pudo registrar la admisión", err.message, "error", true);
   } finally {
@@ -1208,13 +1400,17 @@ async function crearContacto(e) {
   e.preventDefault();
   const form = e.target;
   const datos = formData(form);
+  const id = form.dataset.id;
   const btn = form.querySelector('button[type="submit"]');
   setBusy(btn, true);
   try {
-    await api("/api/contactos", { method: "POST", body: JSON.stringify(datos) });
-    form.reset();
+    await api(id ? `/api/contactos/${id}` : "/api/contactos", {
+      method: id ? "PUT" : "POST",
+      body: JSON.stringify(datos),
+    });
+    cancelarEdicion("contactos");
     await recargar(["contactos"]);
-    notify("Contacto asignado", "El contacto de emergencia se guardó correctamente.", "ok");
+    notify(id ? "Contacto actualizado" : "Contacto asignado", "El contacto de emergencia se guardó correctamente.", "ok");
   } catch (err) {
     notify("No se pudo asignar el contacto", err.message, "error", true);
   } finally {
@@ -1232,11 +1428,66 @@ async function crearMovimiento(e) {
     await api("/api/movimientos", { method: "POST", body: JSON.stringify(datos) });
     form.reset();
     await recargar(["movimientos", "insumos"]);
-    notify("Movimiento registrado", "El movimiento de inventario se guardó correctamente.", "ok");
+    notify("Movimiento registrado", "El movimiento se guardó y la existencia del insumo se actualizó.", "ok");
   } catch (err) {
     notify("No se pudo registrar el movimiento", err.message, "error", true);
   } finally {
     setBusy(btn, false);
+  }
+}
+
+async function crearHospitalizacion(e) {
+  e.preventDefault();
+  const form = e.target;
+  const datos = formData(form);
+  const btn = form.querySelector('button[type="submit"]');
+  setBusy(btn, true);
+  try {
+    await api("/api/hospitalizaciones", { method: "POST", body: JSON.stringify(datos) });
+    form.reset();
+    await recargar(["hospitalizaciones"]);
+    notify("Ingreso registrado", "La cama quedó ocupada. La fecha y hora de ingreso se guardaron automáticamente.", "ok");
+  } catch (err) {
+    notify("No se pudo hospitalizar", err.message, "error", true);
+  } finally {
+    setBusy(btn, false);
+  }
+}
+
+async function finalizarHospitalizacion(id) {
+  const fila = (state.data.hospitalizaciones || []).find((x) => String(x.id_hospitalizacion) === String(id));
+  const ok = await confirmar({
+    title: "¿Finalizar hospitalización?",
+    html: `Se registrará la salida real de <b>${escapeHtml(fila ? fila.paciente : "este paciente")}</b> y la cama quedará libre.`,
+    confirmText: "Finalizar",
+  });
+  if (!ok) return;
+  try {
+    await api(`/api/hospitalizaciones/${id}/finalizar`, { method: "POST" });
+    await recargar(["hospitalizaciones"]);
+    cerrarDetalle();
+    notify("Egreso registrado", "La hospitalización quedó finalizada y la cama está disponible.", "ok");
+  } catch (err) {
+    notify("No se pudo finalizar", err.message, "error", true);
+  }
+}
+
+async function pedirBaja(id) {
+  const fila = (state.data.empleados || []).find((x) => String(x.id_empleado) === String(id));
+  if (!fila) return;
+  const ok = await confirmar({
+    title: "¿Dar de baja al empleado?",
+    html: `<b>${escapeHtml(fila.nombre)} ${escapeHtml(fila.apellido)}</b> quedará inactivo. Sus citas y asignaciones se conservan.`,
+    confirmText: "Dar de baja",
+  });
+  if (!ok) return;
+  try {
+    const res = await api(`/api/empleados/${id}/baja`, { method: "POST" });
+    await recargar(["empleados"]);
+    cerrarDetalle();
+    notify("Baja registrada", (res && res.detalle) || "El empleado quedó inactivo.", "ok");
+  } catch (err) {
+    notify("No se pudo dar de baja", err.message, "error", true);
   }
 }
 

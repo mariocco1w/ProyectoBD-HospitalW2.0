@@ -1,0 +1,5 @@
+conteos=(108, 18, 18, 17, 9, 17, 103, 100, 18)
+hospitalizaciones_activas=100
+restos_qafin=[('dbo.Empleado', 0), ('dbo.Paciente', 0), ('dbo.Insumo', 0), ('dbo.Cama', 0), ('Hospitalizacion.motivo', 0)]
+indices=['UX_Hospitalizacion_Cama_Activa', 'UX_MOVIMIENTO_Idempotencia']
+clave_idempotencia_len=64

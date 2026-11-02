@@ -47,7 +47,7 @@
       <p class="sub">Ingrese sus credenciales de administrador.</p>
       <div class="field">
         <label for="login-user">Usuario</label>
-        <input id="login-user" value="admin" autocomplete="username" />
+        <input id="login-user" autocomplete="username" />
       </div>
       <div class="field">
         <label for="login-pass">Clave</label>
@@ -57,7 +57,6 @@
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/></svg>
         Iniciar sesión
       </button>
-      <p class="login-hint">Usuario de prueba: <b>admin</b> &middot; Clave: <b>admin123</b></p>
     </div>
   </div>
 </div>
@@ -93,6 +92,10 @@
         <button class="nav-item" data-view="admisiones" onclick="showView('admisiones')">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/></svg>
           <span>Admisiones</span>
+        </button>
+        <button class="nav-item" data-view="hospitalizaciones" onclick="showView('hospitalizaciones')">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4v16M2 8h18a2 2 0 0 1 2 2v10M2 17h20M6 8v9"/></svg>
+          <span>Hospitalización</span>
         </button>
         <button class="nav-item" data-view="contactos" onclick="showView('contactos')">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
@@ -203,7 +206,7 @@
             <div><h3>Ingresar paciente</h3><p class="desc">Todos los campos son obligatorios.</p></div>
           </div>
           <div class="card-body">
-            <form class="grid" onsubmit="crearPaciente(event)">
+            <form class="grid" id="form-paciente" onsubmit="crearPaciente(event)">
               <div class="field"><label>DPI</label><input name="dpi" required /></div>
               <div class="field"><label>Nombre</label><input name="nombre" required /></div>
               <div class="field"><label>Apellido</label><input name="apellido" required /></div>
@@ -214,7 +217,7 @@
               <div class="field"><label>Familiar responsable</label><select name="id_familiar" id="sel-familiar" required></select></div>
               <div class="field"><label>Médico externo</label><select name="id_medico_externo" id="sel-medico" required></select></div>
               <div class="field check"><input type="checkbox" name="es_adulto_mayor" id="chk-adulto" /><label for="chk-adulto">Adulto mayor</label></div>
-              <div class="actions-row"><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar paciente</button></div>
+              <div class="actions-row"><button class="btn btn-ghost hidden" type="button" data-cancel="pacientes" onclick="cancelarEdicion('pacientes')">Cancelar</button><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar paciente</button></div>
             </form>
           </div>
         </div>
@@ -245,11 +248,11 @@
             <div><h3>Registrar admisión</h3><p class="desc">Ingreso de un paciente, con o sin médico externo.</p></div>
           </div>
           <div class="card-body">
-            <form class="grid" onsubmit="crearAdmision(event)">
+            <form class="grid" id="form-admision" onsubmit="crearAdmision(event)">
               <div class="field"><label>Paciente</label><select name="id_paciente" id="sel-adm-paciente" required></select></div>
               <div class="field"><label>Médico externo</label><select name="id_medico_externo" id="sel-adm-medico"></select></div>
               <div class="field"><label>Fecha y hora</label><input name="fecha" type="datetime-local" /></div>
-              <div class="actions-row"><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar admisión</button></div>
+              <div class="actions-row"><button class="btn btn-ghost hidden" type="button" data-cancel="admisiones" onclick="cancelarEdicion('admisiones')">Cancelar</button><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar admisión</button></div>
             </form>
           </div>
         </div>
@@ -280,11 +283,11 @@
             <div><h3>Asignar contacto de emergencia</h3><p class="desc">Un paciente puede tener varios contactos.</p></div>
           </div>
           <div class="card-body">
-            <form class="grid" onsubmit="crearContacto(event)">
+            <form class="grid" id="form-contacto" onsubmit="crearContacto(event)">
               <div class="field"><label>Paciente</label><select name="id_paciente" id="sel-con-paciente" required></select></div>
               <div class="field"><label>Contacto</label><select name="id_familiar" id="sel-con-familiar" required></select></div>
               <div class="field"><label>Parentesco</label><select name="id_parentesco" id="sel-con-parentesco" required></select></div>
-              <div class="actions-row"><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar contacto</button></div>
+              <div class="actions-row"><button class="btn btn-ghost hidden" type="button" data-cancel="contactos" onclick="cancelarEdicion('contactos')">Cancelar</button><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar contacto</button></div>
             </form>
           </div>
         </div>
@@ -312,10 +315,10 @@
         <div class="card">
           <div class="card-head">
             <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
-            <div><h3>Ingresar empleado</h3><p class="desc">La especialidad es opcional.</p></div>
+            <div><h3 id="titulo-form-empleados">Ingresar empleado</h3><p class="desc">La especialidad es opcional. La baja deja el registro inactivo y conserva citas y asignaciones.</p></div>
           </div>
           <div class="card-body">
-            <form class="grid" onsubmit="crearEmpleado(event)">
+            <form class="grid" id="form-empleado" onsubmit="crearEmpleado(event)">
               <div class="field"><label>NSS</label><input name="nss" required /></div>
               <div class="field"><label>Nombre</label><input name="nombre" required /></div>
               <div class="field"><label>Apellido</label><input name="apellido" required /></div>
@@ -323,7 +326,7 @@
               <div class="field"><label>Turno</label><select name="id_turno" id="sel-turno" required></select></div>
               <div class="field"><label>Especialidad</label><select name="id_especialidad" id="sel-especialidad"></select></div>
               <div class="field check"><input type="checkbox" name="estado_activo" id="chk-activo" checked /><label for="chk-activo">Activo</label></div>
-              <div class="actions-row"><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar empleado</button></div>
+              <div class="actions-row"><button class="btn btn-ghost hidden" type="button" data-cancel="empleados" onclick="cancelarEdicion('empleados')">Cancelar</button><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar empleado</button></div>
             </form>
           </div>
         </div>
@@ -331,7 +334,7 @@
         <div class="card">
           <div class="card-head">
             <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></div>
-            <div><h3>Empleados registrados</h3><p class="desc">Eliminar un empleado borra también sus citas y asignaciones.</p></div>
+            <div><h3>Empleados registrados</h3><p class="desc">Dar de baja desactiva al empleado. El historial permanece disponible.</p></div>
             <span class="count-badge" id="count-empleados">0</span>
           </div>
           <div class="toolbar">
@@ -354,7 +357,7 @@
             <div><h3>Ingresar insumo</h3><p class="desc">El stock no puede superar el máximo.</p></div>
           </div>
           <div class="card-body">
-            <form class="grid" onsubmit="crearInsumo(event)">
+            <form class="grid" id="form-insumo" onsubmit="crearInsumo(event)">
               <div class="field"><label>Código</label><input name="codigo_insumo" required /></div>
               <div class="field"><label>Nombre</label><input name="nombre_insumo" required /></div>
               <div class="field"><label>Tipo</label><input name="tipo_insumo" required /></div>
@@ -362,7 +365,7 @@
               <div class="field"><label>Stock máximo</label><input name="stock_maximo" type="number" step="0.01" min="0.01" required /></div>
               <div class="field"><label>Costo unitario (Q)</label><input name="costo_unitario" type="number" step="0.01" min="0" required /></div>
               <div class="field"><label>Proveedor</label><select name="id_proveedor" id="sel-proveedor" required></select></div>
-              <div class="actions-row"><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar insumo</button></div>
+              <div class="actions-row"><button class="btn btn-ghost hidden" type="button" data-cancel="insumos" onclick="cancelarEdicion('insumos')">Cancelar</button><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar insumo</button></div>
             </form>
           </div>
         </div>
@@ -390,10 +393,10 @@
         <div class="card">
           <div class="card-head">
             <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
-            <div><h3>Registrar movimiento</h3><p class="desc">Entrada, salida, ajuste o devolución de un insumo.</p></div>
+            <div><h3>Registrar movimiento</h3><p class="desc">Entrada y devolución suman. Salida resta. Ajuste sustituye la existencia por la cantidad contada. El stock se actualiza en la misma operación.</p></div>
           </div>
           <div class="card-body">
-            <form class="grid" onsubmit="crearMovimiento(event)">
+            <form class="grid" id="form-movimiento" onsubmit="crearMovimiento(event)">
               <div class="field"><label>Insumo</label><select name="id_insumo" id="sel-mov-insumo" required></select></div>
               <div class="field"><label>Tipo de movimiento</label><select name="id_tipo_movimiento" id="sel-mov-tipo" required></select></div>
               <div class="field"><label>Cantidad</label><input name="cantidad" type="number" step="0.01" min="0.01" required /></div>
@@ -424,6 +427,47 @@
       </section>
 
       <!-- ==================== TELEMETRIA ==================== -->
+      </section>
+
+      <section id="view-hospitalizaciones" class="view hidden">
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+            <div><h3>Registrar hospitalización</h3><p class="desc" id="hosp-disponibilidad">Solo se listan camas sin una hospitalización activa. La fecha de ingreso se registra sola.</p></div>
+          </div>
+          <div class="card-body">
+            <form class="grid" id="form-hospitalizacion" onsubmit="crearHospitalizacion(event)">
+              <div class="field"><label>Paciente</label><select name="id_paciente" id="sel-hosp-paciente" required></select></div>
+              <div class="field"><label>Cama disponible</label><select name="id_cama" id="sel-hosp-cama" required></select></div>
+              <div class="field"><label>Motivo de ingreso</label><input name="motivo_ingreso" maxlength="300" required /></div>
+              <div class="actions-row"><button class="btn btn-primary" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Registrar ingreso</button></div>
+            </form>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <div class="icon-chip"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4v16M2 8h18a2 2 0 0 1 2 2v10M2 17h20M6 8v9"/></svg></div>
+            <div><h3>Hospitalizaciones</h3><p class="desc">Finalizar registra la salida real y libera la cama.</p></div>
+            <span class="count-badge" id="count-hospitalizaciones">0</span>
+          </div>
+          <div class="toolbar">
+            <label class="search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input placeholder="Buscar por paciente, DPI, cama o sala..." oninput="filtrar('hospitalizaciones', this.value)" />
+            </label>
+            <select id="filtro-hosp-estado" onchange="filtrarEstadoHospitalizacion(this.value)">
+              <option value="">Todos los estados</option>
+              <option value="Activa">Activa</option>
+              <option value="Finalizada">Finalizada</option>
+              <option value="Cancelada">Cancelada</option>
+            </select>
+            <div class="toolbar-info" id="info-hospitalizaciones"></div>
+          </div>
+          <div class="table-wrap"><table id="tbl-hospitalizaciones"></table></div>
+          <div class="pager-wrap" id="pager-hospitalizaciones"></div>
+        </div>
+      </section>
+
       <section id="view-telemetria" class="view hidden">
         <div class="notice" id="tel-notice">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
@@ -501,6 +545,6 @@
 <!-- ============================ NOTIFICACIONES ============================ -->
 <div id="notifs" class="notifs" aria-live="polite"></div>
 
-<script src="/static/app.js?v=7"></script>
+<script src="/static/app.js?v=8"></script>
 </body>
 </html>
